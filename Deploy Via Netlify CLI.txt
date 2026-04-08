@@ -1,0 +1,10 @@
+Fazer Deploy Via Netlify CLI (Terminal Vscode)
+bash
+# Instalar Netlify CLI (se não tiver)
+npm install -g netlify-cli
+
+# Fazer login
+netlify login
+
+# Fazer deploy manual
+netlify deploy --prod --dir=dist
