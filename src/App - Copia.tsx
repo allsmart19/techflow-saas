@@ -8,8 +8,9 @@ import Relatorios from "./pages/Relatorios"
 import Usuarios from "./pages/Usuarios"
 import Assinatura from "./pages/Assinatura"
 import Ajustes from "./pages/Ajustes"
-import Layout from "./components/Layout"
 import Consertos from "./pages/Consertos"
+import Layout from "./components/Layout"
+import SucessoAssinatura from "./pages/SucessoAssinatura"
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = localStorage.getItem("user")
@@ -22,15 +23,17 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/pedidos" element={<Pedidos />} />
-          <Route path="/filtros" element={<Filtros />} />
-          <Route path="/novo" element={<NovoPedido />} />
-          <Route path="/relatorios" element={<Relatorios />} />
-          <Route path="/consertos" element={<Consertos />} />
-          <Route path="/usuarios" element={<Usuarios />} />
+          <Route path="/dashboard" element={<Dashboard key="dashboard" />} />
+          <Route path="/pedidos" element={<Pedidos key="pedidos" />} />
+          <Route path="/consertos" element={<Consertos key="consertos" />} />
+          <Route path="/filtros" element={<Filtros key="filtros" />} />
+          <Route path="/novo" element={<NovoPedido key="novo" />} />
+          <Route path="/relatorios" element={<Relatorios key="relatorios" />} />
+          <Route path="/usuarios" element={<Usuarios key="usuarios" />} />
+          <Route path="/assinatura" element={<Assinatura key="assinatura" />} />
           <Route path="/assinatura" element={<Assinatura />} />
-          <Route path="/ajustes" element={<Ajustes />} />
+          <Route path="/assinatura/sucesso" element={<SucessoAssinatura />} />
+          <Route path="/ajustes" element={<Ajustes key="ajustes" />} />
           <Route path="/" element={<Navigate to="/dashboard" />} />
         </Route>
       </Routes>

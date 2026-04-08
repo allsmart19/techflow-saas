@@ -21,7 +21,11 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* ROTAS PÚBLICAS (sem login) */}
         <Route path="/login" element={<Login />} />
+        <Route path="/assinatura/sucesso" element={<SucessoAssinatura />} />
+        
+        {/* ROTAS PRIVADAS (com login) */}
         <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
           <Route path="/dashboard" element={<Dashboard key="dashboard" />} />
           <Route path="/pedidos" element={<Pedidos key="pedidos" />} />
@@ -31,8 +35,6 @@ function App() {
           <Route path="/relatorios" element={<Relatorios key="relatorios" />} />
           <Route path="/usuarios" element={<Usuarios key="usuarios" />} />
           <Route path="/assinatura" element={<Assinatura key="assinatura" />} />
-          <Route path="/assinatura" element={<Assinatura />} />
-          <Route path="/assinatura/sucesso" element={<SucessoAssinatura />} />
           <Route path="/ajustes" element={<Ajustes key="ajustes" />} />
           <Route path="/" element={<Navigate to="/dashboard" />} />
         </Route>
