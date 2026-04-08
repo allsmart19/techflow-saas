@@ -1,0 +1,20 @@
+{
+	"geolocation": {
+		"data": {
+			"city": "Balneário Camboriú",
+			"country": {
+				"code": "BR",
+				"name": "Brazil"
+			},
+			"subdivision": {
+				"code": "SC",
+				"name": "Santa Catarina"
+			},
+			"timezone": "America/Sao_Paulo",
+			"latitude": -26.9981,
+			"longitude": -48.6187,
+			"postalCode": "88330"
+		},
+		"timestamp": 1775608736887
+	}
+}

@@ -1,0 +1,47 @@
+
+Os consertos devem ser individuais por usuario logado, onde um usuario comum não vê os consertos do outro mas o administrador vê os consertos de todos os usuários selecionando pelo nome. Clicando no menu "Consertos", o admin seleciona um técnico "usuário comun", para visualizar seus respectivos consertos. Faça esses ajustes sem quebrar absolutamente nada. 
+
+
+
+1- Inclua a opção para admin excluir um usuário na frete de cada nome de usuário na "Lista de Usuários", porém seus consertos que foram registrados até então, devem permanecer aparecendo para o admin. 
+
+2- Deve conter também uma opção para que o admin defina o valor de comissão independente para cada usuário "Técnico". 
+
+3- Em "Novo Conserto", o campo "frete" deve receber valor digitável em real brasileiro, assim como os campos "Valor Cobrado" e "Valor de Custo". 
+
+Faça esses ajustes sem quebrar absolutamente nada no funcionamento do app.
+
+
+Quando o admin edita um conserto de um usuário "técnico", o conserto muda de técnico responsável, alterando assim para técnico responsável admin. Quando o admin alterar um conserto, o mesmo deve permanecer como responsável o técnico que o criou. Faça essa correção sem quebrar nada no app.  
+
+
+Na tela de "Novo Conserto", é possivel mostrar o valor da comissão logo após digitar os valores de "VALOR COBRADO" e "VALOR DE CUSTO", já identificando qual valor de comissão está atribuida para o tecnico que está registrando o conserto, assim como o lucro já é calculado e mostrado instantaneamente? Se sim, faça a alteração sem quebrar absolutamente nada na página do app.
+
+A tela de assinaturas deve ser mostrada apenas para usuários admin, oculte-a para usuários comun. 
+
+Na tela de Ajustes , as configurações de Identificação da Loja, como alteração de logo e nome, também, não deve aparecer pára usuários comun, apenas para admin. 
+Para usuários comun mostre apenas as confugrações de Fornecedor, Marca e Condições da tela de Ajustes. Faça essa alteração sem quebrar absolutamente nada.
+
+
+
+Price id Stripe
+29,90 price_pro_monthly
+price_1TJgtLGhIX9bHHYRK2zAXxd2
+
+299,90 price_pro_yearly
+price_1TJgwvGhIX9bHHYR67ugy5vd
+
+
+http://localhost:5173/api/stripe-webhook
+
+
+
+
+
+
+
+
+
+
+
+
