@@ -9,7 +9,7 @@ const PLANOS = {
     nome: "Plano Pro",
     preco: 29.90,
     periodo: "month",
-    link: "https://buy.stripe.com/6oUeVd0D5a0DbuZaFz6sw00",
+    link: "https://buy.stripe.com/test_6oUeVd0D5a0DbuZaFz6sw00",
     descricao: [
       'Gestão ilimitada de pedidos',
       'Relatórios avançados',
@@ -21,7 +21,7 @@ const PLANOS = {
     nome: "Plano Pro Anual",
     preco: 299.90,
     periodo: "year",
-    link: "https://buy.stripe.com/28E00jgC31u77eJ8xr6sw01",
+    link: "https://buy.stripe.com/test_28E00jgC31u77eJ8xr6sw01",
     descricao: [
       'Todos os recursos do plano mensal',
       '2 meses grátis',
