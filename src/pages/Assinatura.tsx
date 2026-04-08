@@ -1,9 +1,8 @@
-// src/pages/Assinatura.tsx
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { Check, Zap, Shield, Loader2 } from "lucide-react"
 
-// Links gerados pelo Stripe (copie do seu dashboard)
+// COLE AQUI OS SEUS LINKS DO STRIPE (MODO TESTE)
 const PLANOS = {
   monthly: {
     nome: "Plano Pro",
@@ -53,7 +52,7 @@ export default function Assinatura() {
   }, [navigate])
 
   const handleAssinar = (link: string) => {
-    // Simplesmente redireciona para o Stripe
+    // Redireciona diretamente para o Stripe
     window.location.href = link
   }
 
