@@ -1,0 +1,9 @@
+Fazer deploy forçado Vscode
+bash
+# Verificar se o arquivo foi adicionado
+git status
+
+# Se aparecer o arquivo como não rastreado:
+git add public/sucesso-assinatura.html
+git commit -m "Adiciona página de sucesso estática"
+git push origin master
