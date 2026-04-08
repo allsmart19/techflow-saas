@@ -1,3 +1,4 @@
+// src/pages/SucessoAssinatura.tsx
 import { useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { CheckCircle, ArrowLeft } from "lucide-react"
@@ -6,11 +7,9 @@ export default function SucessoAssinatura() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    // Redirecionar após 5 segundos
     const timer = setTimeout(() => {
       navigate("/assinatura")
     }, 5000)
-
     return () => clearTimeout(timer)
   }, [navigate])
 
@@ -24,14 +23,14 @@ export default function SucessoAssinatura() {
           Assinatura Confirmada!
         </h1>
         <p className="text-gray-600 dark:text-gray-400 mb-6">
-          Sua assinatura foi ativada com sucesso. Você já tem acesso a todos os recursos do plano contratado.
+          Sua assinatura foi ativada com sucesso. Você já tem acesso a todos os recursos.
         </p>
         <button
           onClick={() => navigate("/assinatura")}
           className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 mx-auto"
         >
           <ArrowLeft className="w-4 h-4" />
-          Voltar para Assinatura
+          Voltar
         </button>
       </div>
     </div>
