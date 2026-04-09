@@ -14,10 +14,12 @@ import {
   Wrench,
   Settings,
   Sun,
-  Moon
+  Moon,
+  Loader2
 } from "lucide-react"
 import { useTheme } from "../context/ThemeContext"
 import { getConfigLoja } from "../services/configService"
+import { isAcessoLiberado } from "../services/assinaturaService"
 
 // Menu para usuários comuns (sem Usuários e sem Assinatura)
 const userMenuItems = [
@@ -51,12 +53,48 @@ export default function Layout() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [nomeLoja, setNomeLoja] = useState("TechFlow")
   const [userRole, setUserRole] = useState<string>("")
+  const [accessLoading, setAccessLoading] = useState(true)
+  const [accessGranted, setAccessGranted] = useState(false)
 
   // Carregar configurações do Supabase e role do usuário
   useEffect(() => {
     carregarConfiguracoes()
     carregarUserRole()
   }, [])
+
+  // Verificar acesso baseado na assinatura (apenas para não-admin)
+  useEffect(() => {
+    async function verificarAcesso() {
+      if (!userRole) return
+
+      // Administradores sempre têm acesso
+      if (userRole === "admin") {
+        setAccessGranted(true)
+        setAccessLoading(false)
+        return
+      }
+
+      // Usuários comuns: verificar assinatura ativa e dentro do prazo
+      const userStr = localStorage.getItem("user")
+      if (!userStr) {
+        setAccessGranted(false)
+        setAccessLoading(false)
+        navigate("/login")
+        return
+      }
+
+      const user = JSON.parse(userStr)
+      const liberado = await isAcessoLiberado(user.id)
+      setAccessGranted(liberado)
+      setAccessLoading(false)
+
+      if (!liberado) {
+        navigate("/assinatura")
+      }
+    }
+
+    verificarAcesso()
+  }, [userRole, navigate])
 
   async function carregarConfiguracoes() {
     const config = await getConfigLoja()
@@ -97,6 +135,20 @@ export default function Layout() {
     if (location.pathname !== path) {
       navigate(path)
     }
+  }
+
+  // Enquanto verifica acesso, mostra loading
+  if (accessLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">
+        <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+      </div>
+    )
+  }
+
+  // Se acesso não foi concedido, não renderiza o layout (o redirecionamento já ocorreu)
+  if (!accessGranted && userRole !== "admin") {
+    return null
   }
 
   return (
