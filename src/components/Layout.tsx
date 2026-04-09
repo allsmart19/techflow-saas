@@ -19,7 +19,7 @@ import {
 } from "lucide-react"
 import { useTheme } from "../context/ThemeContext"
 import { getConfigLoja } from "../services/configService"
-import { isAcessoLiberado } from "../services/assinaturaService"
+// import { isAcessoLiberado } from "../services/assinaturaService" // Desabilitado temporariamente
 
 // Menu para usuários comuns (sem Usuários e sem Assinatura)
 const userMenuItems = [
@@ -29,6 +29,7 @@ const userMenuItems = [
   { icon: Plus, label: "Novo Pedido", path: "/novo" },
   { icon: Filter, label: "Filtros Avançados", path: "/filtros" },
   { icon: BarChart3, label: "Relatórios", path: "/relatorios" },
+  { icon: CreditCard, label: "Assinatura", path: "/assinatura" },
   { icon: Settings, label: "Ajustes", path: "/ajustes" },
 ]
 
@@ -62,40 +63,16 @@ export default function Layout() {
     carregarUserRole()
   }, [])
 
-  // Verificar acesso baseado na assinatura (apenas para não-admin)
+  // ============================================================
+  // VERIFICAÇÃO DE ACESSO DESABILITADA TEMPORARIAMENTE
+  // ============================================================
   useEffect(() => {
-    async function verificarAcesso() {
-      if (!userRole) return
+    // Permite acesso a todas as rotas sem restrição para testes
+    setAccessGranted(true)
+    setAccessLoading(false)
+  }, [])
 
-      // Administradores sempre têm acesso
-      if (userRole === "admin") {
-        setAccessGranted(true)
-        setAccessLoading(false)
-        return
-      }
-
-      // Usuários comuns: verificar assinatura ativa e dentro do prazo
-      const userStr = localStorage.getItem("user")
-      if (!userStr) {
-        setAccessGranted(false)
-        setAccessLoading(false)
-        navigate("/login")
-        return
-      }
-
-      const user = JSON.parse(userStr)
-      const liberado = await isAcessoLiberado(user.id)
-      setAccessGranted(liberado)
-      setAccessLoading(false)
-
-      if (!liberado) {
-        navigate("/assinatura")
-      }
-    }
-
-    verificarAcesso()
-  }, [userRole, navigate])
-
+  // Funções auxiliares (mantidas)
   async function carregarConfiguracoes() {
     const config = await getConfigLoja()
     if (config) {
@@ -146,7 +123,7 @@ export default function Layout() {
     )
   }
 
-  // Se acesso não foi concedido, não renderiza o layout (o redirecionamento já ocorreu)
+  // Se acesso não foi concedido (desabilitado, nunca ocorrerá), não renderiza
   if (!accessGranted && userRole !== "admin") {
     return null
   }

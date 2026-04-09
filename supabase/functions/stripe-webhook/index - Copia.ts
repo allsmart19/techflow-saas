@@ -12,44 +12,6 @@ const stripe = new Stripe(stripeSecretKey, {
   httpClient: Stripe.createFetchHttpClient(),
 })
 
-// Função para enviar e-mail de lembrete via Resend
-async function sendTrialReminderEmail(email: string, userName: string, daysLeft: number) {
-  const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
-  if (!RESEND_API_KEY) {
-    console.error('RESEND_API_KEY não configurada')
-    return
-  }
-
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: 'TechFlow <onboarding@resend.dev>', // Use seu domínio se verificado
-      to: [email],
-      subject: 'Seu período de teste grátis está acabando!',
-      html: `
-        <div style="font-family: sans-serif; max-width: 600px;">
-          <h2>Olá ${userName},</h2>
-          <p>Seu período de teste grátis no <strong>TechFlow</strong> termina em <strong>${daysLeft} dias</strong>.</p>
-          <p>Para continuar usando o sistema sem interrupções, <a href="https://appstoretech.netlify.app/assinatura" style="background: #7c3aed; color: white; padding: 10px 20px; text-decoration: none; border-radius: 8px;">assine agora</a>.</p>
-          <p>Se você já assinou, ignore este e-mail.</p>
-          <br />
-          <p>Equipe TechFlow</p>
-        </div>
-      `,
-    }),
-  })
-
-  if (!res.ok) {
-    console.error('Erro ao enviar e-mail:', await res.text())
-  } else {
-    console.log('✅ E-mail de lembrete enviado para', email)
-  }
-}
-
 serve(async (req) => {
   const signature = req.headers.get('stripe-signature')
   const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET')
@@ -76,7 +38,7 @@ serve(async (req) => {
 
       const subscription = await stripe.subscriptions.retrieve(subscriptionId)
       const currentPeriodEnd = new Date(subscription.current_period_end * 1000)
-      const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000) : null
+      const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000) : null;
       const planName = subscription.items.data[0]?.price?.nickname || 'Pro'
       
       await supabase.from('assinaturas').upsert({
@@ -95,12 +57,12 @@ serve(async (req) => {
     case 'customer.subscription.updated':
       const updatedSub = event.data.object
       const updatedPeriodEnd = new Date(updatedSub.current_period_end * 1000)
-      const updatedTrialEnd = updatedSub.trial_end ? new Date(updatedSub.trial_end * 1000) : null
+      const trialEnd = updatedSub.trial_end ? new Date(updatedSub.trial_end * 1000) : null;
 
       await supabase.from('assinaturas').update({
         status: updatedSub.status,
         data_expiracao: updatedPeriodEnd,
-        trial_end: updatedTrialEnd,
+        trial_end: trialEnd,
         cancel_at_period_end: updatedSub.cancel_at_period_end,
         updated_at: new Date(),
       }).eq('stripe_subscription_id', updatedSub.id)
@@ -122,31 +84,6 @@ serve(async (req) => {
           status: 'past_due',
           updated_at: new Date(),
         }).eq('stripe_subscription_id', subId)
-      }
-      break
-
-    case 'customer.subscription.trial_will_end':
-      const trialEndingSub = event.data.object
-      const trialSubscriptionId = trialEndingSub.id
-
-      // Buscar o user_id a partir do subscription_id na tabela assinaturas
-      const { data: subData } = await supabase
-        .from('assinaturas')
-        .select('user_id')
-        .eq('stripe_subscription_id', trialSubscriptionId)
-        .single()
-
-      if (subData?.user_id) {
-        // Buscar e-mail e nome do usuário na tabela usuarios
-        const { data: userData } = await supabase
-          .from('usuarios')
-          .select('email, username')
-          .eq('id', subData.user_id)
-          .single()
-
-        if (userData?.email) {
-          await sendTrialReminderEmail(userData.email, userData.username, 3)
-        }
       }
       break
   }

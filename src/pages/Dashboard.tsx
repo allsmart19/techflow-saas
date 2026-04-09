@@ -3,7 +3,7 @@ import {
   Package, TrendingUp, Wrench, 
   Truck, Store, Trash2, RefreshCw, 
   DollarSign, AlertCircle, CheckCircle,
-  BarChart3, PieChart
+  BarChart3, PieChart, Loader2
 } from "lucide-react"
 import { supabase } from "../lib/supabase"
 import {
@@ -11,6 +11,8 @@ import {
   Tooltip, ResponsiveContainer, PieChart as RePieChart, 
   Pie, Cell, Legend, LineChart, Line
 } from "recharts"
+import { getAssinaturaAtiva } from "../services/stripeService"
+import { TrialBanner } from "../components/TrialBanner"
 
 interface Pedido {
   id: number
@@ -70,6 +72,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [pedidos, setPedidos] = useState<Pedido[]>([])
+  const [assinaturaAtiva, setAssinaturaAtiva] = useState<any>(null)
   const [stats, setStats] = useState<Stats>({
     CONSERTO: { qtd: 0, valor: 0 },
     GARANTIA: { qtd: 0, valor: 0 },
@@ -92,7 +95,16 @@ export default function Dashboard() {
 
   useEffect(() => {
     carregarDados()
+    carregarAssinatura()
   }, [])
+
+  async function carregarAssinatura() {
+    const userStr = localStorage.getItem("user")
+    if (!userStr) return
+    const user = JSON.parse(userStr)
+    const assinatura = await getAssinaturaAtiva(user.id)
+    setAssinaturaAtiva(assinatura)
+  }
 
   async function carregarDados() {
     setLoading(true)
@@ -260,12 +272,14 @@ export default function Dashboard() {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
-          <div className="w-8 h-8 border-3 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <Loader2 className="w-8 h-8 animate-spin text-purple-600 mx-auto mb-3" />
           <p className="text-xs text-gray-500">Carregando dashboard...</p>
         </div>
       </div>
     )
   }
+
+  const isTrial = assinaturaAtiva?.status === "trialing" && assinaturaAtiva?.trial_end
 
   return (
     <div className="p-5 bg-gray-50 dark:bg-gray-900 min-h-screen">
@@ -274,6 +288,9 @@ export default function Dashboard() {
         <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Dashboard</h1>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Visão geral da sua loja</p>
       </div>
+
+      {/* Banner de Período de Teste (apenas se estiver em trial) */}
+      {isTrial && <TrialBanner trialEnd={assinaturaAtiva.trial_end} />}
 
       {/* Filtros */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm border border-gray-200 dark:border-gray-700 mb-5">

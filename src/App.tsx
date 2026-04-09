@@ -11,6 +11,7 @@ import Ajustes from "./pages/Ajustes"
 import Consertos from "./pages/Consertos"
 import Layout from "./components/Layout"
 import SucessoAssinatura from "./pages/SucessoAssinatura"
+import AuthCallback from "./pages/AuthCallback"
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = localStorage.getItem("user")
@@ -26,6 +27,7 @@ function App() {
         <Route path="/assinatura/sucesso" element={<SucessoAssinatura />} />
         
         {/* ROTAS PRIVADAS (com login) */}
+        <Route path="/auth/callback" element={<AuthCallback />} />
         <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
           <Route path="/dashboard" element={<Dashboard key="dashboard" />} />
           <Route path="/pedidos" element={<Pedidos key="pedidos" />} />

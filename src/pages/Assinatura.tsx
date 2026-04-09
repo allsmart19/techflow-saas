@@ -1,7 +1,7 @@
 // src/pages/Assinatura.tsx
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { Check, Zap, Shield, Loader2, Calendar, CreditCard, AlertCircle } from "lucide-react"
+import { Check, Zap, Shield, Loader2, Calendar, CreditCard, AlertCircle, Clock } from "lucide-react"
 import { getAssinaturaAtiva, criarPortalSession } from "../services/stripeService"
 
 const PLANOS = {
@@ -44,15 +44,13 @@ export default function Assinatura() {
       navigate("/login")
       return
     }
-    setUser(JSON.parse(userStr))
-    carregarAssinatura()
+    const userData = JSON.parse(userStr)
+    setUser(userData)
+    carregarAssinatura(userData.id)
   }, [])
 
-  async function carregarAssinatura() {
-    const userStr = localStorage.getItem("user")
-    if (!userStr) return
-    const user = JSON.parse(userStr)
-    const assinatura = await getAssinaturaAtiva(user.id)
+  async function carregarAssinatura(userId: number) {
+    const assinatura = await getAssinaturaAtiva(userId)
     setAssinaturaAtiva(assinatura)
     setLoading(false)
   }
@@ -85,6 +83,14 @@ export default function Assinatura() {
 
   const formatarData = (data: string) => new Date(data).toLocaleDateString('pt-BR')
 
+  // Calcular dias restantes do trial
+  const getTrialDaysLeft = (trialEnd: string) => {
+    const end = new Date(trialEnd)
+    const now = new Date()
+    const diff = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    return diff > 0 ? diff : 0
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -99,6 +105,8 @@ export default function Assinatura() {
     const hoje = new Date()
     const diasRestantes = Math.ceil((expiracao.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24))
     const canceladoNoFim = assinaturaAtiva.cancel_at_period_end === true
+    const isTrial = assinaturaAtiva.status === 'trialing' && assinaturaAtiva.trial_end
+    const trialDaysLeft = isTrial ? getTrialDaysLeft(assinaturaAtiva.trial_end) : 0
 
     return (
       <div className="p-6 max-w-6xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
@@ -107,10 +115,31 @@ export default function Assinatura() {
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Gerencie sua assinatura</p>
         </div>
 
+        {/* Banner de Período de Teste (se aplicável) */}
+        {isTrial && trialDaysLeft > 0 && (
+          <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-xl p-4 mb-6 text-white">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5" />
+                <span className="text-sm font-medium">
+                  🎉 Você está no período de <strong>teste grátis</strong>! Faltam <strong>{trialDaysLeft} dia(s)</strong> para o fim.
+                </span>
+              </div>
+              <button
+                onClick={() => handleAssinar(PLANOS.monthly.link)}
+                className="bg-white text-purple-600 px-4 py-1.5 rounded-lg text-xs font-semibold hover:bg-gray-100 transition"
+              >
+                Fazer Upgrade Agora
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Banner da assinatura ativa (se não for trial ou já ativa) */}
         <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl p-6 text-white mb-6">
           <div className="flex items-center gap-3 mb-3">
             <Zap className="w-6 h-6" />
-            <h2 className="text-xl font-bold">Assinatura Ativa</h2>
+            <h2 className="text-xl font-bold">{isTrial ? "Período de Teste Ativo" : "Assinatura Ativa"}</h2>
           </div>
           <p className="text-3xl font-bold mb-1">{assinaturaAtiva.plano || "Plano Pro"}</p>
           
@@ -132,13 +161,15 @@ export default function Assinatura() {
                 <p className="font-semibold">{formatarData(assinaturaAtiva.data_inicio)}</p>
               </div>
               <div>
-                <p className="text-xs opacity-75">Próxima cobrança</p>
-                <p className="font-semibold">{formatarData(assinaturaAtiva.data_expiracao)}</p>
+                <p className="text-xs opacity-75">{isTrial ? "Término do teste" : "Próxima cobrança"}</p>
+                <p className="font-semibold">
+                  {isTrial ? formatarData(assinaturaAtiva.trial_end) : formatarData(assinaturaAtiva.data_expiracao)}
+                </p>
               </div>
             </div>
           )}
           
-          {diasRestantes > 0 && !canceladoNoFim && (
+          {diasRestantes > 0 && !canceladoNoFim && !isTrial && (
             <p className="mt-3 text-sm opacity-90">
               ⏰ {diasRestantes} dias restantes até a próxima cobrança.
             </p>
@@ -163,6 +194,8 @@ export default function Assinatura() {
             <p className="text-xs text-blue-700 dark:text-blue-300">
               {canceladoNoFim
                 ? "Você cancelou sua assinatura, mas continuará tendo acesso até o fim do período já pago."
+                : isTrial
+                ? "Seu período de teste termina em breve. Após o fim, seu acesso será bloqueado caso não assine um plano."
                 : "Se você cancelar sua assinatura, ela continuará ativa até o fim do período já pago."}
             </p>
           </div>
@@ -171,7 +204,7 @@ export default function Assinatura() {
     )
   }
 
-  // Caso o usuário NÃO tenha assinatura ativa – mostra os planos para todos (admin ou user)
+  // Se não tem assinatura ativa: mostra os planos disponíveis (com destaque do trial)
   return (
     <div className="p-6 max-w-6xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
       <div className="mb-6">
@@ -202,6 +235,9 @@ export default function Assinatura() {
               </li>
             ))}
           </ul>
+          <div className="mb-3 p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg text-center">
+            <span className="text-xs font-semibold text-purple-700 dark:text-purple-300">🎁 7 dias grátis</span>
+          </div>
           <button
             onClick={() => handleAssinar(PLANOS.monthly.link)}
             className="w-full border border-purple-600 text-purple-600 dark:text-purple-400 dark:border-purple-500 py-2 rounded-lg text-xs font-medium hover:bg-purple-50 dark:hover:bg-purple-900/30 transition"
@@ -231,6 +267,9 @@ export default function Assinatura() {
               </li>
             ))}
           </ul>
+          <div className="mb-3 p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg text-center">
+            <span className="text-xs font-semibold text-purple-700 dark:text-purple-300">🎁 7 dias grátis</span>
+          </div>
           <button
             onClick={() => handleAssinar(PLANOS.yearly.link)}
             className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-2 rounded-lg text-xs font-medium hover:shadow-lg transition"

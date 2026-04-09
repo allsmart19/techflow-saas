@@ -103,7 +103,7 @@ export async function criarPortalSession(customerId: string) {
 export async function getAssinaturaAtiva(userId: number) {
   const { data, error } = await supabase
     .from('assinaturas')
-    .select('*')
+    .select('*') // já seleciona todos os campos, incluindo trial_end
     .eq('user_id', userId)
     .eq('status', 'active')
     .maybeSingle();
