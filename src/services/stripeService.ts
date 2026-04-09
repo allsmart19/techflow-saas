@@ -1,9 +1,9 @@
 // src/services/stripeService.ts
 import { loadStripe } from '@stripe/stripe-js';
+import { supabase } from '../lib/supabase';
 
 const STRIPE_PUBLIC_KEY = import.meta.env.VITE_STRIPE_PUBLIC_KEY;
-// IMPORTANTE: Usar a URL correta para produção
-const API_URL = import.meta.env.VITE_API_URL || window.location.origin;
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 const stripePromise = loadStripe(STRIPE_PUBLIC_KEY);
 
@@ -49,11 +49,11 @@ export async function criarCheckoutSession(priceId: string, userId: number, user
   try {
     console.log('🔄 Criando sessão de checkout...', { priceId, userId, userEmail, API_URL });
     
-      const response = await fetch(`${API_URL}/.netlify/functions/create-checkout-session`, {  
+    // Se você voltar a usar funções serverless, descomente o bloco abaixo
+    /*
+    const response = await fetch(`${API_URL}/api/create-checkout-session`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         priceId,
         userId,
@@ -62,23 +62,15 @@ export async function criarCheckoutSession(priceId: string, userId: number, user
         cancelUrl: `${window.location.origin}/assinatura`,
       }),
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Resposta erro:', response.status, errorText);
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     const session = await response.json();
-    console.log('✅ Sessão criada:', session);
-    
-    if (session.url) {
-      window.location.href = session.url;
-    } else {
-      throw new Error('URL não retornada pela API');
-    }
-    
+    if (session.url) window.location.href = session.url;
     return session;
+    */
+    
+    // Fallback: redirecionar para Payment Link (não usa API)
+    console.warn('Nenhuma função serverless configurada. Redirecione diretamente para o Payment Link.');
+    throw new Error('Função serverless não implementada');
   } catch (error) {
     console.error('❌ Erro ao criar sessão de checkout:', error);
     throw error;
@@ -87,21 +79,15 @@ export async function criarCheckoutSession(priceId: string, userId: number, user
 
 export async function criarPortalSession(customerId: string) {
   try {
-    const response = await fetch(`${API_URL}/.netlify/functions/create-portal-session`, {
+    const response = await fetch(`${API_URL}/api/create-portal-session`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         customerId,
         returnUrl: `${window.location.origin}/assinatura`,
       }),
     });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     const session = await response.json();
     return session;
   } catch (error) {
@@ -110,20 +96,19 @@ export async function criarPortalSession(customerId: string) {
   }
 }
 
+// ============================================================
+// FUNÇÃO SIMPLIFICADA: lê diretamente do Supabase
+// (o webhook mantém a tabela `assinaturas` atualizada)
+// ============================================================
 export async function getAssinaturaAtiva(userId: number) {
-  try {
-    const response = await fetch(`${API_URL}/.netlify/functions/assinatura/${userId}`);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Erro ao buscar assinatura:', error);
-    return null;
-  }
+  const { data, error } = await supabase
+    .from('assinaturas')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .maybeSingle();
+  if (error || !data) return null;
+  return data;
 }
 
 export { stripePromise };
