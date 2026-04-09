@@ -1,9 +1,9 @@
+// src/pages/Assinatura.tsx
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { Check, Zap, Shield, Loader2, Calendar, CreditCard, AlertCircle } from "lucide-react"
 import { getAssinaturaAtiva, criarPortalSession } from "../services/stripeService"
 
-// COLE AQUI OS SEUS LINKS DO STRIPE (MODO TESTE)
 const PLANOS = {
   monthly: {
     nome: "Plano Pro",
@@ -34,7 +34,7 @@ const PLANOS = {
 export default function Assinatura() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
-  const [isAdmin, setIsAdmin] = useState(false)
+  const [user, setUser] = useState<any>(null)
   const [assinaturaAtiva, setAssinaturaAtiva] = useState<any>(null)
   const [processando, setProcessando] = useState(false)
 
@@ -44,20 +44,17 @@ export default function Assinatura() {
       navigate("/login")
       return
     }
-    
-    const user = JSON.parse(userStr)
-    if (user.role === "admin") {
-      setIsAdmin(true)
-      carregarAssinatura(user.id)
-    } else {
-      navigate("/dashboard")
-    }
-    setLoading(false)
-  }, [navigate])
+    setUser(JSON.parse(userStr))
+    carregarAssinatura()
+  }, [])
 
-  async function carregarAssinatura(userId: number) {
-    const assinatura = await getAssinaturaAtiva(userId)
+  async function carregarAssinatura() {
+    const userStr = localStorage.getItem("user")
+    if (!userStr) return
+    const user = JSON.parse(userStr)
+    const assinatura = await getAssinaturaAtiva(user.id)
     setAssinaturaAtiva(assinatura)
+    setLoading(false)
   }
 
   const handleAssinar = (link: string) => {
@@ -86,9 +83,7 @@ export default function Assinatura() {
     }
   }
 
-  const formatarData = (data: string) => {
-    return new Date(data).toLocaleDateString('pt-BR')
-  }
+  const formatarData = (data: string) => new Date(data).toLocaleDateString('pt-BR')
 
   if (loading) {
     return (
@@ -98,10 +93,8 @@ export default function Assinatura() {
     )
   }
 
-  if (!isAdmin) return null
-
-  // Se o administrador já possui uma assinatura ativa, mostra as informações dela
-  if (assinaturaAtiva && assinaturaAtiva.status === 'active') {
+  // Caso o usuário já tenha uma assinatura ativa (ou em trial)
+  if (assinaturaAtiva && (assinaturaAtiva.status === 'active' || assinaturaAtiva.status === 'trialing')) {
     const expiracao = new Date(assinaturaAtiva.data_expiracao)
     const hoje = new Date()
     const diasRestantes = Math.ceil((expiracao.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24))
@@ -114,7 +107,6 @@ export default function Assinatura() {
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Gerencie sua assinatura</p>
         </div>
 
-        {/* Banner da assinatura ativa */}
         <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl p-6 text-white mb-6">
           <div className="flex items-center gap-3 mb-3">
             <Zap className="w-6 h-6" />
@@ -161,18 +153,17 @@ export default function Assinatura() {
             {processando ? "Processando..." : "Gerenciar Assinatura"}
           </button>
           <p className="text-xs opacity-75 mt-3">
-            🔒 Ao clicar em "Gerenciar Assinatura" você será redirecionado para o portal seguro do Stripe, onde poderá cancelar, trocar de plano ou atualizar seu método de pagamento.
+            🔒 Ao clicar em "Gerenciar Assinatura" você será redirecionado para o portal seguro do Stripe.
           </p>
         </div>
 
-        {/* Informações adicionais */}
         <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
           <div className="flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5" />
             <p className="text-xs text-blue-700 dark:text-blue-300">
               {canceladoNoFim
-                ? "Você cancelou sua assinatura, mas continuará tendo acesso até o fim do período já pago. Após o vencimento, seu acesso será desativado."
-                : "Se você cancelar sua assinatura, ela continuará ativa até o fim do período já pago. Após o vencimento, seu acesso será desativado."}
+                ? "Você cancelou sua assinatura, mas continuará tendo acesso até o fim do período já pago."
+                : "Se você cancelar sua assinatura, ela continuará ativa até o fim do período já pago."}
             </p>
           </div>
         </div>
@@ -180,11 +171,11 @@ export default function Assinatura() {
     )
   }
 
-  // Se não houver assinatura ativa, mostra os planos disponíveis
+  // Caso o usuário NÃO tenha assinatura ativa – mostra os planos para todos (admin ou user)
   return (
     <div className="p-6 max-w-6xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Assinatura</h1>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Planos e Assinatura</h1>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Escolha o plano ideal para o seu negócio</p>
       </div>
 
