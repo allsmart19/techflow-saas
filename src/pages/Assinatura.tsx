@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { Check, Zap, Shield, Loader2 } from "lucide-react"
+import { Check, Zap, Shield, Loader2, Calendar, CreditCard, AlertCircle } from "lucide-react"
+import { getAssinaturaAtiva, criarPortalSession } from "../services/stripeService"
 
 // COLE AQUI OS SEUS LINKS DO STRIPE (MODO TESTE)
 const PLANOS = {
@@ -34,6 +35,8 @@ export default function Assinatura() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [assinaturaAtiva, setAssinaturaAtiva] = useState<any>(null)
+  const [processando, setProcessando] = useState(false)
 
   useEffect(() => {
     const userStr = localStorage.getItem("user")
@@ -45,15 +48,46 @@ export default function Assinatura() {
     const user = JSON.parse(userStr)
     if (user.role === "admin") {
       setIsAdmin(true)
+      carregarAssinatura(user.id)
     } else {
       navigate("/dashboard")
     }
     setLoading(false)
   }, [navigate])
 
+  async function carregarAssinatura(userId: number) {
+    const assinatura = await getAssinaturaAtiva(userId)
+    setAssinaturaAtiva(assinatura)
+  }
+
   const handleAssinar = (link: string) => {
-    // Redireciona diretamente para o Stripe
     window.location.href = link
+  }
+
+  const handleGerenciarAssinatura = async () => {
+    if (!assinaturaAtiva?.stripe_customer_id) {
+      alert("Nenhuma assinatura ativa encontrada.")
+      return
+    }
+
+    setProcessando(true)
+    try {
+      const session = await criarPortalSession(assinaturaAtiva.stripe_customer_id)
+      if (session.url) {
+        window.location.href = session.url
+      } else {
+        alert("Erro ao acessar o portal de gerenciamento.")
+      }
+    } catch (error) {
+      console.error("Erro ao criar portal session:", error)
+      alert("Erro ao acessar o portal. Tente novamente.")
+    } finally {
+      setProcessando(false)
+    }
+  }
+
+  const formatarData = (data: string) => {
+    return new Date(data).toLocaleDateString('pt-BR')
   }
 
   if (loading) {
@@ -66,18 +100,99 @@ export default function Assinatura() {
 
   if (!isAdmin) return null
 
+  // Se o administrador já possui uma assinatura ativa, mostra as informações dela
+  if (assinaturaAtiva && assinaturaAtiva.status === 'active') {
+    const expiracao = new Date(assinaturaAtiva.data_expiracao)
+    const hoje = new Date()
+    const diasRestantes = Math.ceil((expiracao.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24))
+    const canceladoNoFim = assinaturaAtiva.cancel_at_period_end === true
+
+    return (
+      <div className="p-6 max-w-6xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
+        <div className="mb-6">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Assinatura</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Gerencie sua assinatura</p>
+        </div>
+
+        {/* Banner da assinatura ativa */}
+        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl p-6 text-white mb-6">
+          <div className="flex items-center gap-3 mb-3">
+            <Zap className="w-6 h-6" />
+            <h2 className="text-xl font-bold">Assinatura Ativa</h2>
+          </div>
+          <p className="text-3xl font-bold mb-1">{assinaturaAtiva.plano || "Plano Pro"}</p>
+          
+          {canceladoNoFim ? (
+            <div className="bg-yellow-500/20 border border-yellow-400 rounded-lg p-3 mt-3">
+              <p className="text-sm font-semibold">⚠️ Cancelamento programado</p>
+              <p className="text-sm">
+                Sua assinatura permanecerá ativa até <strong>{expiracao.toLocaleDateString('pt-BR')}</strong>.
+                Após essa data, seu acesso será desativado.
+              </p>
+              <p className="text-xs mt-2 opacity-90">
+                Você pode reativar a qualquer momento acessando o portal de gerenciamento.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
+              <div>
+                <p className="text-xs opacity-75">Data de início</p>
+                <p className="font-semibold">{formatarData(assinaturaAtiva.data_inicio)}</p>
+              </div>
+              <div>
+                <p className="text-xs opacity-75">Próxima cobrança</p>
+                <p className="font-semibold">{formatarData(assinaturaAtiva.data_expiracao)}</p>
+              </div>
+            </div>
+          )}
+          
+          {diasRestantes > 0 && !canceladoNoFim && (
+            <p className="mt-3 text-sm opacity-90">
+              ⏰ {diasRestantes} dias restantes até a próxima cobrança.
+            </p>
+          )}
+
+          <button
+            onClick={handleGerenciarAssinatura}
+            disabled={processando}
+            className="mt-4 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2"
+          >
+            <CreditCard className="w-4 h-4" />
+            {processando ? "Processando..." : "Gerenciar Assinatura"}
+          </button>
+          <p className="text-xs opacity-75 mt-3">
+            🔒 Ao clicar em "Gerenciar Assinatura" você será redirecionado para o portal seguro do Stripe, onde poderá cancelar, trocar de plano ou atualizar seu método de pagamento.
+          </p>
+        </div>
+
+        {/* Informações adicionais */}
+        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5" />
+            <p className="text-xs text-blue-700 dark:text-blue-300">
+              {canceladoNoFim
+                ? "Você cancelou sua assinatura, mas continuará tendo acesso até o fim do período já pago. Após o vencimento, seu acesso será desativado."
+                : "Se você cancelar sua assinatura, ela continuará ativa até o fim do período já pago. Após o vencimento, seu acesso será desativado."}
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Se não houver assinatura ativa, mostra os planos disponíveis
   return (
     <div className="p-6 max-w-6xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
       <div className="mb-6">
         <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Assinatura</h1>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Gerencie seu plano de assinatura</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Escolha o plano ideal para o seu negócio</p>
       </div>
 
       <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-3 mb-6">
         <div className="flex items-center gap-2">
           <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400" />
           <p className="text-xs text-amber-700 dark:text-amber-400">
-            Área restrita para administradores. Apenas você pode gerenciar a assinatura do sistema.
+            Teste grátis de 7 dias disponível para novos clientes. Cancele quando quiser.
           </p>
         </div>
       </div>
@@ -135,10 +250,17 @@ export default function Assinatura() {
       </div>
 
       <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-        <p className="text-xs text-blue-600 dark:text-blue-400">
-          🔐 Pagamento seguro via Stripe. Você será redirecionado para a página de pagamento.
-          Após a confirmação, sua assinatura será ativada automaticamente.
-        </p>
+        <div className="flex items-start gap-2">
+          <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5" />
+          <div>
+            <p className="text-xs text-blue-700 dark:text-blue-300 font-medium">
+              Teste grátis de 7 dias
+            </p>
+            <p className="text-xs text-blue-600 dark:text-blue-400">
+              Você será cobrado somente após o fim do período de teste, a menos que cancele antes.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   )
