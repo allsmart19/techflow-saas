@@ -3,8 +3,6 @@ import { loadStripe } from '@stripe/stripe-js';
 import { supabase } from '../lib/supabase';
 
 const STRIPE_PUBLIC_KEY = import.meta.env.VITE_STRIPE_PUBLIC_KEY;
-const API_URL = import.meta.env.VITE_API_URL || '';
-
 const stripePromise = loadStripe(STRIPE_PUBLIC_KEY);
 
 export interface PlanoAssinatura {
@@ -45,15 +43,18 @@ export const planos: PlanoAssinatura[] = [
   }
 ];
 
+// ============================================================
+// FUNÇÃO PARA CRIAR SESSÃO DE CHECKOUT (NOVA)
+// ============================================================
 export async function criarCheckoutSession(priceId: string, userId: number, userEmail: string) {
   try {
-    console.log('🔄 Criando sessão de checkout...', { priceId, userId, userEmail, API_URL });
+    console.log('🔄 Criando sessão de checkout...', { priceId, userId, userEmail });
     
-    // Se você voltar a usar funções serverless, descomente o bloco abaixo
-    /*
-    const response = await fetch(`${API_URL}/api/create-checkout-session`, {
+    const response = await fetch('/api/create-checkout-session', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
         priceId,
         userId,
@@ -62,32 +63,41 @@ export async function criarCheckoutSession(priceId: string, userId: number, user
         cancelUrl: `${window.location.origin}/assinatura`,
       }),
     });
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    }
+
     const session = await response.json();
-    if (session.url) window.location.href = session.url;
+    console.log('✅ Sessão criada:', session);
     return session;
-    */
-    
-    // Fallback: redirecionar para Payment Link (não usa API)
-    console.warn('Nenhuma função serverless configurada. Redirecione diretamente para o Payment Link.');
-    throw new Error('Função serverless não implementada');
   } catch (error) {
     console.error('❌ Erro ao criar sessão de checkout:', error);
     throw error;
   }
 }
 
+// ============================================================
+// FUNÇÃO PARA CRIAR PORTAL DO CLIENTE (GERENCIAR ASSINATURA)
+// ============================================================
 export async function criarPortalSession(customerId: string) {
   try {
-    const response = await fetch(`${API_URL}/api/create-portal-session`, {
+    const response = await fetch('/api/create-portal-session', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
         customerId,
         returnUrl: `${window.location.origin}/assinatura`,
       }),
     });
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
     const session = await response.json();
     return session;
   } catch (error) {
@@ -97,18 +107,35 @@ export async function criarPortalSession(customerId: string) {
 }
 
 // ============================================================
-// FUNÇÃO SIMPLIFICADA: lê diretamente do Supabase
-// (o webhook mantém a tabela `assinaturas` atualizada)
+// FUNÇÃO PARA BUSCAR ASSINATURA ATIVA DO USUÁRIO
 // ============================================================
 export async function getAssinaturaAtiva(userId: number) {
-  const { data, error } = await supabase
-    .from('assinaturas')
-    .select('*') // já seleciona todos os campos, incluindo trial_end
-    .eq('user_id', userId)
-    .eq('status', 'active')
-    .maybeSingle();
-  if (error || !data) return null;
-  return data;
+  try {
+    const { data, error } = await supabase
+      .from('assinaturas')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .maybeSingle();
+    
+    if (error || !data) {
+      // Tentar buscar também em trialing
+      const { data: trialData, error: trialError } = await supabase
+        .from('assinaturas')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('status', 'trialing')
+        .maybeSingle();
+      
+      if (trialError || !trialData) return null;
+      return trialData;
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Erro ao buscar assinatura ativa:', error);
+    return null;
+  }
 }
 
 export { stripePromise };
