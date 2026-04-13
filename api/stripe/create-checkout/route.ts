@@ -28,7 +28,7 @@ const { priceId, userId, userEmail } = body
     const { data: assinaturaExistente } = await supabase
       .from('assinaturas')
       .select('id')
-      .eq('user_id', userId)
+      .eq('user_id', String(userId))
       .limit(1)
 
     const isNovoUsuario = !assinaturaExistente || assinaturaExistente.length === 0

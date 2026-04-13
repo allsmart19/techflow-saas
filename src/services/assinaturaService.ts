@@ -4,7 +4,7 @@ import { getAssinaturaAtiva } from './stripeService';
 
 export async function isAcessoLiberado(userId: number): Promise<boolean> {
   try {
-    const assinatura = await getAssinaturaAtiva(userId);
+    const assinatura = await getAssinaturaAtiva(String(userId));
     if (!assinatura) return false;
     const expiracao = new Date(assinatura.data_expiracao);
     return expiracao > new Date();

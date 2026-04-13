@@ -116,7 +116,7 @@ export default function Ajustes() {
       .from('fornecedores')
       .update({ nome: novoFornecedor.toUpperCase() })
       .eq('id', editandoFornecedor.id)
-      .eq('user_id', userId)
+      .eq('user_id', String(userId))
     if (error) {
       setMensagem({ tipo: "error", texto: "Erro ao atualizar fornecedor" })
     } else {
@@ -208,7 +208,7 @@ export default function Ajustes() {
       .from('marcas')
       .update({ nome: novaMarca.toUpperCase() })
       .eq('id', editandoMarca.id)
-      .eq('user_id', userId)
+      .eq('user_id', String(userId))
     if (error) {
       setMensagem({ tipo: "error", texto: "Erro ao atualizar marca" })
     } else {
@@ -299,7 +299,7 @@ export default function Ajustes() {
       .from('condicoes')
       .update({ nome: novaCondicao.toUpperCase() })
       .eq('id', editandoCondicao.id)
-      .eq('user_id', userId)
+      .eq('user_id', String(userId))
     if (error) {
       setMensagem({ tipo: "error", texto: "Erro ao atualizar condição" })
     } else {
@@ -606,7 +606,7 @@ export default function Ajustes() {
                   {fornecedores.map((f: any) => (
                     <div key={f.id} className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg px-2 py-1.5 transition-colors">
                       <span className="text-xs text-gray-700 dark:text-gray-300">{f.nome}</span>
-                      <button onClick={() => editarFornecedor(f)} className="p-0.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors">
+                      <button onClick={() => editandoFornecedor(f)} className="p-0.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors">
                         <Edit className="w-3 h-3" />
                       </button>
                       <button onClick={() => excluirFornecedor(f.id)} className="p-0.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors">
@@ -662,7 +662,7 @@ export default function Ajustes() {
                   {marcas.map((m: any) => (
                     <div key={m.id} className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg px-2 py-1.5 transition-colors">
                       <span className="text-xs text-gray-700 dark:text-gray-300">{m.nome}</span>
-                      <button onClick={() => editarMarca(m)} className="p-0.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors">
+                      <button onClick={() => editandoMarca(m)} className="p-0.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors">
                         <Edit className="w-3 h-3" />
                       </button>
                       <button onClick={() => excluirMarca(m.id)} className="p-0.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors">
@@ -718,7 +718,7 @@ export default function Ajustes() {
                   {condicoes.map((c: any) => (
                     <div key={c.id} className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg px-2 py-1.5 transition-colors">
                       <span className="text-xs text-gray-700 dark:text-gray-300">{c.nome}</span>
-                      <button onClick={() => editarCondicao(c)} className="p-0.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors">
+                      <button onClick={() => editandoCondicao(c)} className="p-0.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors">
                         <Edit className="w-3 h-3" />
                       </button>
                       <button onClick={() => excluirCondicao(c.id)} className="p-0.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors">

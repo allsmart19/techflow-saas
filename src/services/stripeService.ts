@@ -108,7 +108,7 @@ export async function getAssinaturaAtiva(userId: string) {
     const { data, error } = await supabase
       .from('assinaturas')
       .select('*')
-      .eq('user_id', userId)
+      .eq('user_id', String(userId))
       .eq('status', 'active')
       .maybeSingle();
     
@@ -117,7 +117,7 @@ export async function getAssinaturaAtiva(userId: string) {
       const { data: trialData, error: trialError } = await supabase
         .from('assinaturas')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', String(userId))
         .eq('status', 'trialing')
         .maybeSingle();
       

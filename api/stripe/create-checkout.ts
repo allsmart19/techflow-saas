@@ -50,7 +50,7 @@ export default async function handler(req: any, res: any) {
     const { data: assinaturaExistente, error: erroBusca } = await supabase
       .from('assinaturas')
       .select('id')
-      .eq('user_id', userId)
+      .eq('user_id', String(userId))
       .limit(1)
 
     if (erroBusca) {
