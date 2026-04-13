@@ -2,7 +2,7 @@ import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 
 if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error('STRIPE_SECRET_KEY não definida')
+  console.error('STRIPE_SECRET_KEY não definida')
 }
 
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -20,17 +20,14 @@ const supabase = createClient(
 )
 
 export default async function handler(req: any, res: any) {
-  // 🔥 CORS LIBERADO
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
 
-  // 🔥 RESPONDER PREFLIGHT (ESSENCIAL)
   if (req.method === 'OPTIONS') {
     return res.status(200).end()
   }
 
-  // 🔒 Permitir apenas POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método não permitido' })
   }

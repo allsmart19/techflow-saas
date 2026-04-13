@@ -96,7 +96,8 @@ export default function Assinatura() {
     setProcessando(true)
 
     try {
-      const response = await fetch(("https://SEU-PROJETO.vercel.app/api/stripe/create-checkout"), {
+      //const response = await fetch(("https://SEU-PROJETO.vercel.app/api/stripe/create-checkout"), {
+        const response = await fetch(("https://techflow-saas-livid.vercel.app/api/create-checkout"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
