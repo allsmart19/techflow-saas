@@ -27,7 +27,6 @@ export default function NovoPedido() {
   const [fornecedoresLista, setFornecedoresLista] = useState<Fornecedor[]>([])
   const [marcasLista, setMarcasLista] = useState<Marca[]>([])
   const [condicoesLista, setCondicoesLista] = useState<Condicao[]>([])
-  const [carregandoListas, setCarregandoListas] = useState(true)
   
   const [formData, setFormData] = useState({
     codigo: "",
@@ -42,76 +41,60 @@ export default function NovoPedido() {
     observacoes: ""
   })
 
-  // Carregar listas do Supabase
   useEffect(() => {
-    const carregarListas = async () => {
-      const userStr = sessionStorage.getItem("user")
-      const user = userStr ? JSON.parse(userStr) : null
-      if (!user) {
-        navigate("/login")
-        return
+    const savedFornecedores = sessionStorage.getItem("fornecedores")
+    if (savedFornecedores) {
+      const fornecedores = JSON.parse(savedFornecedores)
+      setFornecedoresLista(fornecedores)
+      if (fornecedores.length > 0 && !formData.fornecedor) {
+        setFormData(prev => ({ ...prev, fornecedor: fornecedores[0].nome }))
       }
-
-      // Obter loja_id do usuário logado
-      const { data: userInfo, error: userError } = await supabase
-        .from("usuarios")
-        .select("loja_id")
-        .eq("id", user.id)
-        .single()
-
-      if (userError) {
-        console.error("Erro ao obter loja_id:", userError)
-        return
+    } else {
+      const defaultFornecedores = [
+        { id: 1, nome: "NEW STORE" },
+        { id: 2, nome: "NOVA PEÇAS" },
+        { id: 3, nome: "FLORITEC" },
+        { id: 4, nome: "VITOR CAMELÃO" }
+      ]
+      setFornecedoresLista(defaultFornecedores)
+      setFormData(prev => ({ ...prev, fornecedor: "NEW STORE" }))
+    }
+    
+    const savedMarcas = sessionStorage.getItem("marcas")
+    if (savedMarcas) {
+      const marcas = JSON.parse(savedMarcas)
+      setMarcasLista(marcas)
+      if (marcas.length > 0 && !formData.marca) {
+        setFormData(prev => ({ ...prev, marca: marcas[0].nome }))
       }
-
-      const lojaId = userInfo?.loja_id || 1
-
-      setCarregandoListas(true)
-
-      // Fornecedores
-      const { data: fornecedores, error: errFornecedores } = await supabase
-        .from('fornecedores')
-        .select('id, nome')
-        .eq('loja_id', lojaId)
-        .order('nome')
-      if (!errFornecedores && fornecedores) setFornecedoresLista(fornecedores)
-
-      // Marcas
-      const { data: marcas, error: errMarcas } = await supabase
-        .from('marcas')
-        .select('id, nome')
-        .eq('loja_id', lojaId)
-        .order('nome')
-      if (!errMarcas && marcas) setMarcasLista(marcas)
-
-      // Condições
-      const { data: condicoes, error: errCondicoes } = await supabase
-        .from('condicoes')
-        .select('id, nome')
-        .eq('loja_id', lojaId)
-        .order('nome')
-      if (!errCondicoes && condicoes) setCondicoesLista(condicoes)
-
-      setCarregandoListas(false)
+    } else {
+      const defaultMarcas = [
+        { id: 1, nome: "SAMSUNG" }, { id: 2, nome: "APPLE" },
+        { id: 3, nome: "MOTOROLA" }, { id: 4, nome: "XIAOMI" },
+        { id: 5, nome: "LG" }, { id: 6, nome: "ASUS" }, { id: 7, nome: "INFINIX" }
+      ]
+      setMarcasLista(defaultMarcas)
+      setFormData(prev => ({ ...prev, marca: "SAMSUNG" }))
     }
-
-    carregarListas()
-  }, [navigate])
-
-  // Preencher valores padrão quando as listas carregarem
-  useEffect(() => {
-    if (fornecedoresLista.length > 0 && !formData.fornecedor) {
-      setFormData(prev => ({ ...prev, fornecedor: fornecedoresLista[0].nome }))
+    
+    const savedCondicoes = sessionStorage.getItem("condicoes")
+    if (savedCondicoes) {
+      const condicoes = JSON.parse(savedCondicoes)
+      setCondicoesLista(condicoes)
+      if (condicoes.length > 0 && !formData.condicao) {
+        setFormData(prev => ({ ...prev, condicao: condicoes[0].nome }))
+      }
+    } else {
+      const defaultCondicoes = [
+        { id: 1, nome: "CONSERTO" }, { id: 2, nome: "GARANTIA" },
+        { id: 3, nome: "LOJA" }, { id: 4, nome: "DEVOLUÇÃO" },
+        { id: 5, nome: "DEVOLUÇÃO PAGA" }, { id: 6, nome: "QUEBRADA" }
+      ]
+      setCondicoesLista(defaultCondicoes)
+      setFormData(prev => ({ ...prev, condicao: "CONSERTO" }))
     }
-    if (marcasLista.length > 0 && !formData.marca) {
-      setFormData(prev => ({ ...prev, marca: marcasLista[0].nome }))
-    }
-    if (condicoesLista.length > 0 && !formData.condicao) {
-      setFormData(prev => ({ ...prev, condicao: condicoesLista[0].nome }))
-    }
-  }, [fornecedoresLista, marcasLista, condicoesLista])
+  }, [])
 
-  // Carregar dados para edição
   useEffect(() => {
     const state = location.state as any
     if (state?.isEditing && state?.pedido) {
@@ -130,20 +113,22 @@ export default function NovoPedido() {
       setFormData({
         codigo: state.pedido.codigo || "",
         modelo: state.pedido.modelo || "",
-        marca: state.pedido.marca || (marcasLista[0]?.nome || ""),
+        marca: state.pedido.marca || (marcasLista[0]?.nome || "SAMSUNG"),
         valor: state.pedido.valor?.toString() || "",
         frete: state.pedido.frete?.toString() || "",
         data: converterData(state.pedido.data),
         data_vencimento: converterData(state.pedido.data_vencimento),
-        fornecedor: state.pedido.fornecedor || (fornecedoresLista[0]?.nome || ""),
-        condicao: state.pedido.condicao || (condicoesLista[0]?.nome || ""),
+        fornecedor: state.pedido.fornecedor || (fornecedoresLista[0]?.nome || "NEW STORE"),
+        condicao: state.pedido.condicao || (condicoesLista[0]?.nome || "CONSERTO"),
         observacoes: state.pedido.observacoes || ""
       })
     }
-  }, [location, marcasLista, fornecedoresLista, condicoesLista])
+  }, [location, fornecedoresLista, marcasLista, condicoesLista])
 
+  // Função para permitir apenas números no campo código
   const handleCodigoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
+    // Permite apenas números
     const apenasNumeros = value.replace(/\D/g, '')
     setFormData({...formData, codigo: apenasNumeros})
   }
@@ -170,30 +155,6 @@ export default function NovoPedido() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    const userStr = sessionStorage.getItem("user")
-    const user = userStr ? JSON.parse(userStr) : null
-    if (!user) {
-      alert("Usuário não identificado. Faça login novamente.")
-      navigate("/login")
-      return
-    }
-
-    // Obter loja_id do usuário logado
-    const { data: userInfo, error: userError } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", user.id)
-      .single()
-
-    if (userError) {
-      console.error("Erro ao obter loja_id:", userError)
-      alert("Erro ao obter informações da loja!")
-      return
-    }
-
-    const lojaId = userInfo?.loja_id || 1
-
     setLoading(true)
 
     const dataFormatada = new Date(formData.data).toLocaleDateString('pt-BR')
@@ -209,9 +170,7 @@ export default function NovoPedido() {
       data_vencimento: vencimentoFormatado,
       fornecedor: formData.fornecedor,
       condicao: formData.condicao,
-      observacoes: formData.observacoes,
-      user_id: user.id,
-      loja_id: lojaId  // 🔥 ADICIONADO
+      observacoes: formData.observacoes
     }
 
     let error = null
@@ -252,17 +211,6 @@ export default function NovoPedido() {
     return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   }
 
-  if (carregandoListas) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="w-8 h-8 border-3 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-          <p className="text-xs text-gray-500">Carregando dados...</p>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="p-6 max-w-4xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
       <div className="mb-4">
@@ -276,7 +224,7 @@ export default function NovoPedido() {
 
       <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {/* Código do Pedido */}
+          {/* Código do Pedido - Aceita apenas números */}
           <div>
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
               Código do Pedido
@@ -313,7 +261,6 @@ export default function NovoPedido() {
               value={formData.marca}
               onChange={(e) => setFormData({...formData, marca: e.target.value})}
               className="w-full px-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition bg-gray-50 dark:bg-gray-900 focus:bg-white dark:focus:bg-gray-800 text-gray-900 dark:text-white"
-              required
             >
               {marcasLista.map((marca) => (
                 <option key={marca.id} value={marca.nome}>{marca.nome}</option>
@@ -328,7 +275,6 @@ export default function NovoPedido() {
               value={formData.fornecedor}
               onChange={(e) => setFormData({...formData, fornecedor: e.target.value})}
               className="w-full px-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition bg-gray-50 dark:bg-gray-900 focus:bg-white dark:focus:bg-gray-800 text-gray-900 dark:text-white"
-              required
             >
               {fornecedoresLista.map((fornecedor) => (
                 <option key={fornecedor.id} value={fornecedor.nome}>{fornecedor.nome}</option>
@@ -399,7 +345,6 @@ export default function NovoPedido() {
               value={formData.condicao}
               onChange={(e) => setFormData({...formData, condicao: e.target.value})}
               className="w-full px-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition bg-gray-50 dark:bg-gray-900 focus:bg-white dark:focus:bg-gray-800 text-gray-900 dark:text-white"
-              required
             >
               {condicoesLista.map((condicao) => (
                 <option key={condicao.id} value={condicao.nome}>{condicao.nome}</option>

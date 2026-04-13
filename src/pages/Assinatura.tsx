@@ -2,14 +2,15 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { Check, Zap, Shield, Loader2, Calendar, CreditCard, AlertCircle, Clock } from "lucide-react"
-import { getAssinaturaAtiva, criarPortalSession } from "../services/stripeService"
+import { getAssinaturaAtiva, criarPortalSession, criarCheckoutSession } from "../services/stripeService"
 
 const PLANOS = {
   monthly: {
+    id: "pro_monthly",
     nome: "Plano Pro",
     preco: 29.90,
     periodo: "month",
-    link: "https://buy.stripe.com/test_6oUeVd0D5a0DbuZaFz6sw00",
+    priceId: "price_1TJkMhGhIX9bHHYRz3yMVprr", // Seu price_id do Stripe
     descricao: [
       'Gestão ilimitada de pedidos',
       'Relatórios avançados',
@@ -18,10 +19,11 @@ const PLANOS = {
     ]
   },
   yearly: {
+    id: "pro_yearly",
     nome: "Plano Pro Anual",
     preco: 299.90,
     periodo: "year",
-    link: "https://buy.stripe.com/test_28E00jgC31u77eJ8xr6sw01",
+    priceId: "price_1TJkNzGhIX9bHHYRQVnOIx3S", // Seu price_id do Stripe
     descricao: [
       'Todos os recursos do plano mensal',
       '2 meses grátis',
@@ -39,7 +41,7 @@ export default function Assinatura() {
   const [processando, setProcessando] = useState(false)
 
   useEffect(() => {
-    const userStr = localStorage.getItem("user")
+    const userStr = sessionStorage.getItem("user")
     if (!userStr) {
       navigate("/login")
       return
@@ -55,8 +57,32 @@ export default function Assinatura() {
     setLoading(false)
   }
 
-  const handleAssinar = (link: string) => {
-    window.location.href = link
+  const handleAssinar = async (plano: typeof PLANOS.monthly) => {
+    if (!user) {
+      navigate("/login")
+      return
+    }
+
+    setProcessando(true)
+    try {
+      // Criar sessão de checkout dinâmica (igual ao Manus.ai)
+      const session = await criarCheckoutSession(
+        plano.priceId,
+        user.id,
+        user.email || `${user.username}@tecnicotech.com`
+      )
+      
+      if (session.url) {
+        window.location.href = session.url
+      } else {
+        alert("Erro ao iniciar checkout. Tente novamente.")
+      }
+    } catch (error) {
+      console.error("Erro ao criar sessão:", error)
+      alert("Erro ao processar assinatura. Tente novamente.")
+    } finally {
+      setProcessando(false)
+    }
   }
 
   const handleGerenciarAssinatura = async () => {
@@ -83,7 +109,6 @@ export default function Assinatura() {
 
   const formatarData = (data: string) => new Date(data).toLocaleDateString('pt-BR')
 
-  // Calcular dias restantes do trial
   const getTrialDaysLeft = (trialEnd: string) => {
     const end = new Date(trialEnd)
     const now = new Date()
@@ -115,7 +140,6 @@ export default function Assinatura() {
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Gerencie sua assinatura</p>
         </div>
 
-        {/* Banner de Período de Teste (se aplicável) */}
         {isTrial && trialDaysLeft > 0 && (
           <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-xl p-4 mb-6 text-white">
             <div className="flex items-center justify-between flex-wrap gap-3">
@@ -126,16 +150,16 @@ export default function Assinatura() {
                 </span>
               </div>
               <button
-                onClick={() => handleAssinar(PLANOS.monthly.link)}
+                onClick={() => handleAssinar(PLANOS.monthly)}
+                disabled={processando}
                 className="bg-white text-purple-600 px-4 py-1.5 rounded-lg text-xs font-semibold hover:bg-gray-100 transition"
               >
-                Fazer Upgrade Agora
+                {processando ? "Processando..." : "Fazer Upgrade Agora"}
               </button>
             </div>
           </div>
         )}
 
-        {/* Banner da assinatura ativa (se não for trial ou já ativa) */}
         <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl p-6 text-white mb-6">
           <div className="flex items-center gap-3 mb-3">
             <Zap className="w-6 h-6" />
@@ -204,7 +228,7 @@ export default function Assinatura() {
     )
   }
 
-  // Se não tem assinatura ativa: mostra os planos disponíveis (com destaque do trial)
+  // Se não tem assinatura ativa: mostra os planos disponíveis
   return (
     <div className="p-6 max-w-6xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
       <div className="mb-6">
@@ -239,10 +263,11 @@ export default function Assinatura() {
             <span className="text-xs font-semibold text-purple-700 dark:text-purple-300">🎁 7 dias grátis</span>
           </div>
           <button
-            onClick={() => handleAssinar(PLANOS.monthly.link)}
-            className="w-full border border-purple-600 text-purple-600 dark:text-purple-400 dark:border-purple-500 py-2 rounded-lg text-xs font-medium hover:bg-purple-50 dark:hover:bg-purple-900/30 transition"
+            onClick={() => handleAssinar(PLANOS.monthly)}
+            disabled={processando}
+            className="w-full border border-purple-600 text-purple-600 dark:text-purple-400 dark:border-purple-500 py-2 rounded-lg text-xs font-medium hover:bg-purple-50 dark:hover:bg-purple-900/30 transition disabled:opacity-50"
           >
-            Assinar Mensal
+            {processando ? "Processando..." : "Assinar Mensal"}
           </button>
         </div>
 
@@ -271,10 +296,11 @@ export default function Assinatura() {
             <span className="text-xs font-semibold text-purple-700 dark:text-purple-300">🎁 7 dias grátis</span>
           </div>
           <button
-            onClick={() => handleAssinar(PLANOS.yearly.link)}
-            className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-2 rounded-lg text-xs font-medium hover:shadow-lg transition"
+            onClick={() => handleAssinar(PLANOS.yearly)}
+            disabled={processando}
+            className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-2 rounded-lg text-xs font-medium hover:shadow-lg transition disabled:opacity-50"
           >
-            Assinar Anual
+            {processando ? "Processando..." : "Assinar Anual"}
           </button>
         </div>
       </div>

@@ -60,8 +60,12 @@ export default function Login() {
         query = query.eq("username", identifier.toLowerCase())
       }
       
-      const { data, error: fetchError } = await query.single()
-      
+      const { data, error: fetchError } = await supabase
+  .from("usuarios")
+  .select("id, username, email, senha, role, ativo")
+  .or(`username.eq.${identifier.toLowerCase()},email.eq.${identifier.toLowerCase()}`)
+  .single()
+
       if (fetchError || !data) {
         setError("Usuário não encontrado!")
         setLoading(false)
@@ -89,7 +93,7 @@ export default function Login() {
         }
         
         // Login bem-sucedido via Auth
-        localStorage.setItem("user", JSON.stringify({
+        sessionStorage.setItem("user", JSON.stringify({
           id: data.id,
           username: data.username,
           role: data.role
@@ -99,7 +103,7 @@ export default function Login() {
         // Usuário legado: comparar hash SHA-256
         const hashDigitado = await gerarHashSimples(password)
         if (hashDigitado === data.senha) {
-          localStorage.setItem("user", JSON.stringify({
+          sessionStorage.setItem("user", JSON.stringify({
             id: data.id,
             username: data.username,
             role: data.role

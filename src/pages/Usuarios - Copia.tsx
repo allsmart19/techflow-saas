@@ -5,7 +5,6 @@ import { Users, Plus, Key, Shield, User, Loader2, AlertCircle, Edit2, Save, X, P
 interface Usuario {
   id: number
   username: string
-  email?: string
   role: string
   comissao_percentual: number
   ativo: boolean
@@ -36,6 +35,16 @@ const todasPermissoes = [
   { nome: "assinatura", label: "Assinatura", rota: "/assinatura" },
   { nome: "ajustes", label: "Ajustes", rota: "/ajustes" },
 ]
+
+// Função para gerar hash SHA-256
+async function gerarHashSimples(senha: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(senha)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+  return hashHex
+}
 
 export default function Usuarios() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
@@ -107,7 +116,7 @@ export default function Usuarios() {
     
     const { data, error } = await supabase
       .from("usuarios")
-      .select("id, username, email, role, comissao_percentual, ativo, permissoes")
+      .select("id, username, role, comissao_percentual, ativo, permissoes")
       .eq("loja_id", lojaId)
       .order("id")
     
@@ -136,40 +145,30 @@ export default function Usuarios() {
     
     setSaving(true)
     
-    // Obter dados do admin logado
-    const { data: adminData, error: adminError } = await supabase
+    const senhaHash = await gerarHashSimples(novaSenha)
+    
+    // Obter loja_id do usuário logado
+    const { data: lojaData, error: lojaError } = await supabase
       .from("usuarios")
-      .select("email, loja_id, username")
+      .select("loja_id")
       .eq("id", userLogado?.id)
       .single()
     
-    // Gerar email para o técnico (usar email fixo para garantir formato válido)
-    const tecnicoEmail = `${novoUsername.toLowerCase()}@tecnicotech.com`
-    
-    // 1. Criar usuário no Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: tecnicoEmail,
-      password: novaSenha,
-      options: {
-        data: { username: novoUsername.toLowerCase() }
-      }
-    })
-    
-    if (authError) {
-      setMensagem({ tipo: "error", texto: `Erro no Auth: ${authError.message}` })
+    if (lojaError) {
+      console.error("Erro ao obter loja_id:", lojaError)
       setSaving(false)
+      setMensagem({ tipo: "error", texto: "Erro ao obter informações da loja!" })
       setTimeout(() => setMensagem(null), 3000)
       return
     }
     
-    // 2. Inserir na tabela usuarios
     const novoUsuarioData: any = {
       username: novoUsername.toLowerCase(),
-      email: tecnicoEmail,
+      senha: senhaHash,
       role: novaRole,
       comissao_percentual: 10.00,
       ativo: true,
-      loja_id: adminData?.loja_id || 1
+      loja_id: lojaData?.loja_id || 1
     }
     
     // Se for técnico (user), adicionar permissões padrão
@@ -187,20 +186,20 @@ export default function Usuarios() {
       }
     }
     
-    const { error: insertError } = await supabase
+    const { error } = await supabase
       .from("usuarios")
       .insert([novoUsuarioData])
     
     setSaving(false)
     
-    if (insertError) {
-      if (insertError.code === "23505") {
+    if (error) {
+      if (error.code === "23505") {
         setMensagem({ tipo: "error", texto: "Nome de usuário já existe!" })
       } else {
-        setMensagem({ tipo: "error", texto: `Erro ao cadastrar usuário: ${insertError.message}` })
+        setMensagem({ tipo: "error", texto: "Erro ao cadastrar usuário!" })
       }
     } else {
-      setMensagem({ tipo: "success", texto: `Usuário ${novoUsername} cadastrado com sucesso! Email: ${tecnicoEmail}` })
+      setMensagem({ tipo: "success", texto: `Usuário ${novoUsername} cadastrado com sucesso!` })
       setNovoUsername("")
       setNovaSenha("")
       setNovaRole("user")
@@ -226,34 +225,22 @@ export default function Usuarios() {
     
     setSaving(true)
     
-    // Buscar o email do usuário
-    const { data: userData } = await supabase
+    const senhaHash = await gerarHashSimples(novaSenhaReset)
+    
+    const { error } = await supabase
       .from("usuarios")
-      .select("email")
+      .update({ senha: senhaHash })
       .eq("id", usuarioSelecionado.id)
-      .single()
     
-    if (!userData?.email) {
-      setMensagem({ tipo: "error", texto: "Usuário não possui email cadastrado!" })
-      setSaving(false)
-      setTimeout(() => setMensagem(null), 3000)
-      return
-    }
+    setSaving(false)
     
-    // Atualizar senha no Supabase Auth
-    const { error: updateError } = await supabase.auth.admin.updateUserById(
-      usuarioSelecionado.id.toString(),
-      { password: novaSenhaReset }
-    )
-    
-    if (updateError) {
-      setMensagem({ tipo: "error", texto: "Erro ao resetar senha no Auth!" })
+    if (error) {
+      setMensagem({ tipo: "error", texto: "Erro ao resetar senha!" })
     } else {
       setMensagem({ tipo: "success", texto: `Senha de ${usuarioSelecionado.username} resetada com sucesso!` })
       setUsuarioSelecionado(null)
       setNovaSenhaReset("")
     }
-    setSaving(false)
     setTimeout(() => setMensagem(null), 3000)
   }
 
@@ -525,7 +512,6 @@ export default function Usuarios() {
                 <tr>
                   <th className="text-left p-3 text-xs font-medium text-gray-500 dark:text-gray-400">ID</th>
                   <th className="text-left p-3 text-xs font-medium text-gray-500 dark:text-gray-400">Usuário</th>
-                  <th className="text-left p-3 text-xs font-medium text-gray-500 dark:text-gray-400">Email</th>
                   <th className="text-left p-3 text-xs font-medium text-gray-500 dark:text-gray-400">Tipo</th>
                   <th className="text-center p-3 text-xs font-medium text-gray-500 dark:text-gray-400">Status</th>
                   <th className="text-center p-3 text-xs font-medium text-gray-500 dark:text-gray-400">Comissão</th>
@@ -545,7 +531,6 @@ export default function Usuarios() {
                         </span>
                       )}
                     </td>
-                    <td className="p-3 text-xs text-gray-500 dark:text-gray-400">{user.email || "-"}</td>
                     <td className="p-3">
                       <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
                         user.role === "admin_loja" || user.role === "master"
@@ -690,8 +675,7 @@ export default function Usuarios() {
               • Usuários <strong>inativos</strong> não podem fazer login, mas seus dados permanecem no sistema.<br />
               • A comissão padrão para novos técnicos é <strong>10%</strong>.<br />
               • Para <strong>reativar</strong> um usuário inativo, clique no botão verde ao lado do nome.<br />
-              • Técnicos podem ter permissões <strong>granulares</strong> (quais telas podem acessar).<br />
-              • O email do técnico é gerado automaticamente como: <strong>usuario@tecnicotech.com</strong>
+              • Técnicos podem ter permissões <strong>granulares</strong> (quais telas podem acessar).
             </p>
           </div>
         )}

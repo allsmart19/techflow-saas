@@ -30,37 +30,17 @@ export default function Pedidos() {
   }, [])
 
   async function carregarPedidos() {
-    const userStr = sessionStorage.getItem("user")
-    const user = userStr ? JSON.parse(userStr) : null
-    if (!user) return
-  
-    // Obter loja_id do usuário logado
-    const { data: userInfo, error: userError } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", user.id)
-      .single()
-  
-    if (userError) {
-      console.error("Erro ao obter loja_id:", userError)
-      return
-    }
-  
-    const lojaId = userInfo?.loja_id || 1
-  
     setLoading(true)
     const { data, error } = await supabase
       .from("pedidos")
       .select("*")
-      .eq("loja_id", lojaId)  // 🔥 FILTRO POR LOJA (todos os pedidos da loja)
       .order("data", { ascending: false })
-  
+
     if (error) {
       console.error("Erro ao carregar pedidos:", error)
     } else {
       setPedidos(data || [])
       
-      // Extrair meses únicos dos pedidos
       const meses = new Set<string>()
       data?.forEach((pedido: Pedido) => {
         if (pedido.data) {
@@ -68,29 +48,27 @@ export default function Pedidos() {
           meses.add(mes)
         }
       })
-      setMesesDisponiveis(Array.from(meses).sort().reverse())
+      
+      const mesesLista = Array.from(meses).sort((a, b) => {
+        const [mesA, anoA] = a.split('/')
+        const [mesB, anoB] = b.split('/')
+        return new Date(parseInt(anoB), parseInt(mesB) - 1).getTime() - 
+               new Date(parseInt(anoA), parseInt(mesA) - 1).getTime()
+      })
+      
+      setMesesDisponiveis(mesesLista)
       
       const hoje = new Date()
       const mesAtual = `${(hoje.getMonth() + 1).toString().padStart(2, '0')}/${hoje.getFullYear()}`
-      const existeMesAtual = mesesDisponiveis.includes(mesAtual)
-      setMesSelecionado(existeMesAtual ? mesAtual : (mesesDisponiveis[0] || ""))
+      const existeMesAtual = mesesLista.includes(mesAtual)
+      setMesSelecionado(existeMesAtual ? mesAtual : mesesLista[0] || "")
     }
     setLoading(false)
   }
 
   async function excluirPedido(id: number) {
-    // Obter usuário logado
-    const userStr = sessionStorage.getItem("user")
-    const user = userStr ? JSON.parse(userStr) : null
-    if (!user) return
-
     if (confirm("Tem certeza que deseja excluir este pedido?")) {
-      const { error } = await supabase
-        .from("pedidos")
-        .delete()
-        .eq("id", id)
-        .eq("user_id", user.id)  // 🔥 GARANTE QUE SÓ EXCLUI SE FOR DO USUÁRIO
-      
+      const { error } = await supabase.from("pedidos").delete().eq("id", id)
       if (error) {
         alert("Erro ao excluir pedido")
       } else {

@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react"
 import { Save, Trash2, Upload, Building, Plus, Edit, X, Package, Truck, Tag, Check, AlertCircle, ChevronDown, ChevronUp, User } from "lucide-react"
-import { getConfigLoja, updateConfigLoja } from "../services/configService"
-import { supabase } from "../lib/supabase"
+import { getConfigLoja, updateConfigLoja, } from "../services/configService"
 
 export default function Ajustes() {
   // Estado da logo e nome da loja
@@ -13,7 +12,6 @@ export default function Ajustes() {
   const [userName, setUserName] = useState<string>("admin")
   const [userRole, setUserRole] = useState<string>("user")
   const [saving, setSaving] = useState(false)
-  const [userId, setUserId] = useState<number | null>(null)
 
   // Estado para controlar seções expandidas
   const [secaoAberta, setSecaoAberta] = useState<string>("fornecedores")
@@ -28,33 +26,16 @@ export default function Ajustes() {
   const [novaMarca, setNovaMarca] = useState<string>("")
   const [editandoMarca, setEditandoMarca] = useState<any>(null)
 
-  // Estado para condições (tabela: condicoes)
+  // Estado para condições
   const [condicoes, setCondicoes] = useState<any[]>([])
   const [novaCondicao, setNovaCondicao] = useState<string>("")
   const [editandoCondicao, setEditandoCondicao] = useState<any>(null)
 
-  // Carregar configurações da loja e dados do usuário
+  // Carregar configurações do Supabase
   useEffect(() => {
     carregarConfiguracoes()
-    carregarUsuario()
+    carregarDadosLocal()
   }, [])
-
-  async function carregarUsuario() {
-    const userStr = sessionStorage.getItem("user")
-    if (userStr) {
-      const user = JSON.parse(userStr)
-      setUserName(user.username || "admin")
-      setUserRole(user.role || "user")
-      setUserId(user.id)
-      if (user.id) {
-        await Promise.all([
-          carregarFornecedores(user.id),
-          carregarMarcas(user.id),
-          carregarCondicoes(user.id)
-        ])
-      }
-    }
-  }
 
   async function carregarConfiguracoes() {
     const config = await getConfigLoja()
@@ -66,334 +47,55 @@ export default function Ajustes() {
     }
   }
 
-  // ========== FORNECEDORES ==========
-  async function carregarFornecedores(userId: number) {
-    // Primeiro, obter loja_id do usuário
-    const { data: userInfo } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", userId)
-      .single()
+  function carregarDadosLocal() {
+    const savedUser = sessionStorage.getItem("user")
+    if (savedUser) {
+      const user = JSON.parse(savedUser)
+      setUserName(user.username || "admin")
+      setUserRole(user.role || "user")
+    }
     
-    const lojaId = userInfo?.loja_id || 1
-    
-    const { data, error } = await supabase
-      .from('fornecedores')
-      .select('*')
-      .eq('loja_id', lojaId)
-      .order('nome')
-    if (!error && data) setFornecedores(data)
-  }
-
-  async function adicionarFornecedor() {
-    if (!novoFornecedor.trim() || !userId) return
-    
-    // Obter loja_id do usuário
-    const { data: userInfo } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", userId)
-      .single()
-    
-    const lojaId = userInfo?.loja_id || 1
-    
-    const { error } = await supabase
-      .from('fornecedores')
-      .insert([{ nome: novoFornecedor.toUpperCase(), loja_id: lojaId }])
-    if (error) {
-      setMensagem({ tipo: "error", texto: "Erro ao adicionar fornecedor" })
+    const savedFornecedores = sessionStorage.getItem("fornecedores")
+    if (savedFornecedores) {
+      setFornecedores(JSON.parse(savedFornecedores))
     } else {
-      setNovoFornecedor("")
-      await carregarFornecedores(userId)
-      setMensagem({ tipo: "success", texto: "Fornecedor adicionado!" })
+      const defaultFornecedores = [
+        { id: 1, nome: "NEW STORE" },
+        { id: 2, nome: "NOVA PEÇAS" },
+        { id: 3, nome: "FLORITEC" },
+        { id: 4, nome: "VITOR CAMELÃO" }
+      ]
+      setFornecedores(defaultFornecedores)
+      sessionStorage.setItem("fornecedores", JSON.stringify(defaultFornecedores))
     }
-    setTimeout(() => setMensagem(null), 3000)
-  }
-
-  async function salvarEdicaoFornecedor() {
-    if (!editandoFornecedor || !novoFornecedor.trim() || !userId) return
-    const { error } = await supabase
-      .from('fornecedores')
-      .update({ nome: novoFornecedor.toUpperCase() })
-      .eq('id', editandoFornecedor.id)
-      .eq('user_id', userId)
-    if (error) {
-      setMensagem({ tipo: "error", texto: "Erro ao atualizar fornecedor" })
+    
+    const savedMarcas = sessionStorage.getItem("marcas")
+    if (savedMarcas) {
+      setMarcas(JSON.parse(savedMarcas))
     } else {
-      setEditandoFornecedor(null)
-      setNovoFornecedor("")
-      await carregarFornecedores(userId)
-      setMensagem({ tipo: "success", texto: "Fornecedor atualizado!" })
+      const defaultMarcas = [
+        { id: 1, nome: "SAMSUNG" }, { id: 2, nome: "APPLE" },
+        { id: 3, nome: "MOTOROLA" }, { id: 4, nome: "XIAOMI" },
+        { id: 5, nome: "LG" }, { id: 6, nome: "ASUS" }, { id: 7, nome: "INFINIX" }
+      ]
+      setMarcas(defaultMarcas)
+      sessionStorage.setItem("marcas", JSON.stringify(defaultMarcas))
     }
-    setTimeout(() => setMensagem(null), 3000)
-  }
-
-  async function excluirFornecedor(id: number) {
-    if (!confirm("Tem certeza que deseja excluir este fornecedor?")) return
-    if (!userId) return
     
-    // Obter loja_id do usuário
-    const { data: userInfo } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", userId)
-      .single()
-    
-    const lojaId = userInfo?.loja_id || 1
-    
-    const { error } = await supabase
-      .from('fornecedores')
-      .delete()
-      .eq('id', id)
-      .eq('loja_id', lojaId)
-    if (error) {
-      setMensagem({ tipo: "error", texto: "Erro ao excluir fornecedor" })
+    const savedCondicoes = sessionStorage.getItem("condicoes")
+    if (savedCondicoes) {
+      setCondicoes(JSON.parse(savedCondicoes))
     } else {
-      await carregarFornecedores(userId)
-      setMensagem({ tipo: "success", texto: "Fornecedor excluído!" })
+      const defaultCondicoes = [
+        { id: 1, nome: "CONSERTO" }, { id: 2, nome: "GARANTIA" },
+        { id: 3, nome: "LOJA" }, { id: 4, nome: "DEVOLUÇÃO" },
+        { id: 5, nome: "DEVOLUÇÃO PAGA" }, { id: 6, nome: "QUEBRADA" }
+      ]
+      setCondicoes(defaultCondicoes)
+      sessionStorage.setItem("condicoes", JSON.stringify(defaultCondicoes))
     }
-    setTimeout(() => setMensagem(null), 3000)
   }
 
-  const cancelarEdicaoFornecedor = () => {
-    setEditandoFornecedor(null)
-    setNovoFornecedor("")
-  }
-
-  // ========== MARCAS ==========
-  async function carregarMarcas(userId: number) {
-    const { data: userInfo } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", userId)
-      .single()
-    
-    const lojaId = userInfo?.loja_id || 1
-    
-    const { data, error } = await supabase
-      .from('marcas')
-      .select('*')
-      .eq('loja_id', lojaId)
-      .order('nome')
-    if (!error && data) setMarcas(data)
-  }
-
-  async function adicionarMarca() {
-    if (!novaMarca.trim() || !userId) return
-    
-    const { data: userInfo } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", userId)
-      .single()
-    
-    const lojaId = userInfo?.loja_id || 1
-    
-    const { error } = await supabase
-      .from('marcas')
-      .insert([{ nome: novaMarca.toUpperCase(), loja_id: lojaId }])
-    if (error) {
-      setMensagem({ tipo: "error", texto: "Erro ao adicionar marca" })
-    } else {
-      setNovaMarca("")
-      await carregarMarcas(userId)
-      setMensagem({ tipo: "success", texto: "Marca adicionada!" })
-    }
-    setTimeout(() => setMensagem(null), 3000)
-  }
-
-  async function salvarEdicaoMarca() {
-    if (!editandoMarca || !novaMarca.trim() || !userId) return
-    const { error } = await supabase
-      .from('marcas')
-      .update({ nome: novaMarca.toUpperCase() })
-      .eq('id', editandoMarca.id)
-      .eq('user_id', userId)
-    if (error) {
-      setMensagem({ tipo: "error", texto: "Erro ao atualizar marca" })
-    } else {
-      setEditandoMarca(null)
-      setNovaMarca("")
-      await carregarMarcas(userId)
-      setMensagem({ tipo: "success", texto: "Marca atualizada!" })
-    }
-    setTimeout(() => setMensagem(null), 3000)
-  }
-
-  async function excluirMarca(id: number) {
-    if (!confirm("Tem certeza que deseja excluir esta marca?")) return
-    if (!userId) return
-    
-    const { data: userInfo } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", userId)
-      .single()
-    
-    const lojaId = userInfo?.loja_id || 1
-    
-    const { error } = await supabase
-      .from('marcas')
-      .delete()
-      .eq('id', id)
-      .eq('loja_id', lojaId)
-    if (error) {
-      setMensagem({ tipo: "error", texto: "Erro ao excluir marca" })
-    } else {
-      await carregarMarcas(userId)
-      setMensagem({ tipo: "success", texto: "Marca excluída!" })
-    }
-    setTimeout(() => setMensagem(null), 3000)
-  }
-
-  const cancelarEdicaoMarca = () => {
-    setEditandoMarca(null)
-    setNovaMarca("")
-  }
-
-  // ========== CONDIÇÕES ========== (tabela: condicoes)
-  async function carregarCondicoes(userId: number) {
-    const { data: userInfo } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", userId)
-      .single()
-    
-    const lojaId = userInfo?.loja_id || 1
-    
-    const { data, error } = await supabase
-      .from('condicoes')
-      .select('*')
-      .eq('loja_id', lojaId)
-      .order('nome')
-    if (!error && data) setCondicoes(data)
-  }
-
-  async function adicionarCondicao() {
-    if (!novaCondicao.trim() || !userId) return
-    
-    const { data: userInfo } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", userId)
-      .single()
-    
-    const lojaId = userInfo?.loja_id || 1
-    
-    const { error } = await supabase
-      .from('condicoes')
-      .insert([{ nome: novaCondicao.toUpperCase(), loja_id: lojaId }])
-    if (error) {
-      setMensagem({ tipo: "error", texto: "Erro ao adicionar condição" })
-    } else {
-      setNovaCondicao("")
-      await carregarCondicoes(userId)
-      setMensagem({ tipo: "success", texto: "Condição adicionada!" })
-    }
-    setTimeout(() => setMensagem(null), 3000)
-  }
-
-  async function salvarEdicaoCondicao() {
-    if (!editandoCondicao || !novaCondicao.trim() || !userId) return
-    const { error } = await supabase
-      .from('condicoes')
-      .update({ nome: novaCondicao.toUpperCase() })
-      .eq('id', editandoCondicao.id)
-      .eq('user_id', userId)
-    if (error) {
-      setMensagem({ tipo: "error", texto: "Erro ao atualizar condição" })
-    } else {
-      setEditandoCondicao(null)
-      setNovaCondicao("")
-      await carregarCondicoes(userId)
-      setMensagem({ tipo: "success", texto: "Condição atualizada!" })
-    }
-    setTimeout(() => setMensagem(null), 3000)
-  }
-
-  async function excluirCondicao(id: number) {
-    if (!confirm("Tem certeza que deseja excluir esta condição?")) return
-    if (!userId) return
-    
-    const { data: userInfo } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", userId)
-      .single()
-    
-    const lojaId = userInfo?.loja_id || 1
-    
-    const { error } = await supabase
-      .from('condicoes')
-      .delete()
-      .eq('id', id)
-      .eq('loja_id', lojaId)
-    if (error) {
-      setMensagem({ tipo: "error", texto: "Erro ao excluir condição" })
-    } else {
-      await carregarCondicoes(userId)
-      setMensagem({ tipo: "success", texto: "Condição excluída!" })
-    }
-    setTimeout(() => setMensagem(null), 3000)
-  }
-
-  const cancelarEdicaoCondicao = () => {
-    setEditandoCondicao(null)
-    setNovaCondicao("")
-  }
-
-  // ========== RESETAR PADRÃO ==========
-  const resetarPadrao = async () => {
-    if (!confirm("Isso irá restaurar todas as configurações padrão. Continuar?")) return
-    if (!userId) return
-    setSaving(true)
-
-    // Atualizar configurações da loja
-    await updateConfigLoja("Sua Loja", null)
-    setPreviewLogo(null)
-    setLogoUrl(null)
-    setNomeLojaTemp("Sua Loja")
-    setNomeLoja("Sua Loja")
-
-    // Fornecedores padrão
-    const defaultFornecedores = [
-      "NEW STORE", "NOVA PEÇAS", "FLORITEC", "VITOR CAMELÃO"
-    ]
-    for (const nome of defaultFornecedores) {
-      await supabase
-        .from('fornecedores')
-        .upsert({ nome, user_id: userId }, { onConflict: 'nome,user_id' })
-    }
-    await carregarFornecedores(userId)
-
-    // Marcas padrão
-    const defaultMarcas = [
-      "SAMSUNG", "APPLE", "MOTOROLA", "XIAOMI", "LG", "ASUS", "INFINIX"
-    ]
-    for (const nome of defaultMarcas) {
-      await supabase
-        .from('marcas')
-        .upsert({ nome, user_id: userId }, { onConflict: 'nome,user_id' })
-    }
-    await carregarMarcas(userId)
-
-    // Condições padrão
-    const defaultCondicoes = [
-      "CONSERTO", "GARANTIA", "LOJA", "DEVOLUÇÃO", "DEVOLUÇÃO PAGA", "QUEBRADA"
-    ]
-    for (const nome of defaultCondicoes) {
-      await supabase
-        .from('condicoes')
-        .upsert({ nome, user_id: userId }, { onConflict: 'nome,user_id' })
-    }
-    await carregarCondicoes(userId)
-
-    setMensagem({ tipo: "success", texto: "Configurações restauradas para o padrão!" })
-    setSaving(false)
-    setTimeout(() => setMensagem(null), 3000)
-  }
-
-  // ========== FUNÇÕES DE UI (mesmas) ==========
   const handleLogoUpload = (event: any) => {
     const file = event.target.files?.[0]
     if (file) {
@@ -408,7 +110,9 @@ export default function Ajustes() {
         return
       }
       const reader = new FileReader()
-      reader.onloadend = () => setPreviewLogo(reader.result as string)
+      reader.onloadend = () => {
+        setPreviewLogo(reader.result as string)
+      }
       reader.readAsDataURL(file)
     }
   }
@@ -460,11 +164,187 @@ export default function Ajustes() {
     }
   }
 
+  const adicionarFornecedor = () => {
+    if (novoFornecedor.trim()) {
+      const novo = { id: Date.now(), nome: novoFornecedor.toUpperCase() }
+      const novosFornecedores = [...fornecedores, novo]
+      setFornecedores(novosFornecedores)
+      sessionStorage.setItem("fornecedores", JSON.stringify(novosFornecedores))
+      setNovoFornecedor("")
+      setMensagem({ tipo: "success", texto: "Fornecedor adicionado!" })
+      setTimeout(() => setMensagem(null), 3000)
+    }
+  }
+
+  const editarFornecedor = (fornecedor: any) => {
+    setEditandoFornecedor(fornecedor)
+    setNovoFornecedor(fornecedor.nome)
+  }
+
+  const salvarEdicaoFornecedor = () => {
+    if (editandoFornecedor && novoFornecedor.trim()) {
+      const novosFornecedores = fornecedores.map((f: any) => 
+        f.id === editandoFornecedor.id ? { ...f, nome: novoFornecedor.toUpperCase() } : f
+      )
+      setFornecedores(novosFornecedores)
+      sessionStorage.setItem("fornecedores", JSON.stringify(novosFornecedores))
+      setEditandoFornecedor(null)
+      setNovoFornecedor("")
+      setMensagem({ tipo: "success", texto: "Fornecedor atualizado!" })
+      setTimeout(() => setMensagem(null), 3000)
+    }
+  }
+
+  const cancelarEdicaoFornecedor = () => {
+    setEditandoFornecedor(null)
+    setNovoFornecedor("")
+  }
+
+  const excluirFornecedor = (id: number) => {
+    if (confirm("Tem certeza que deseja excluir este fornecedor?")) {
+      const novosFornecedores = fornecedores.filter((f: any) => f.id !== id)
+      setFornecedores(novosFornecedores)
+      sessionStorage.setItem("fornecedores", JSON.stringify(novosFornecedores))
+      setMensagem({ tipo: "success", texto: "Fornecedor excluído!" })
+      setTimeout(() => setMensagem(null), 3000)
+    }
+  }
+
+  const adicionarMarca = () => {
+    if (novaMarca.trim()) {
+      const novo = { id: Date.now(), nome: novaMarca.toUpperCase() }
+      const novasMarcas = [...marcas, novo]
+      setMarcas(novasMarcas)
+      sessionStorage.setItem("marcas", JSON.stringify(novasMarcas))
+      setNovaMarca("")
+      setMensagem({ tipo: "success", texto: "Marca adicionada!" })
+      setTimeout(() => setMensagem(null), 3000)
+    }
+  }
+
+  const editarMarca = (marca: any) => {
+    setEditandoMarca(marca)
+    setNovaMarca(marca.nome)
+  }
+
+  const salvarEdicaoMarca = () => {
+    if (editandoMarca && novaMarca.trim()) {
+      const novasMarcas = marcas.map((m: any) => 
+        m.id === editandoMarca.id ? { ...m, nome: novaMarca.toUpperCase() } : m
+      )
+      setMarcas(novasMarcas)
+      sessionStorage.setItem("marcas", JSON.stringify(novasMarcas))
+      setEditandoMarca(null)
+      setNovaMarca("")
+      setMensagem({ tipo: "success", texto: "Marca atualizada!" })
+      setTimeout(() => setMensagem(null), 3000)
+    }
+  }
+
+  const cancelarEdicaoMarca = () => {
+    setEditandoMarca(null)
+    setNovaMarca("")
+  }
+
+  const excluirMarca = (id: number) => {
+    if (confirm("Tem certeza que deseja excluir esta marca?")) {
+      const novasMarcas = marcas.filter((m: any) => m.id !== id)
+      setMarcas(novasMarcas)
+      sessionStorage.setItem("marcas", JSON.stringify(novasMarcas))
+      setMensagem({ tipo: "success", texto: "Marca excluída!" })
+      setTimeout(() => setMensagem(null), 3000)
+    }
+  }
+
+  const adicionarCondicao = () => {
+    if (novaCondicao.trim()) {
+      const novo = { id: Date.now(), nome: novaCondicao.toUpperCase() }
+      const novasCondicoes = [...condicoes, novo]
+      setCondicoes(novasCondicoes)
+      sessionStorage.setItem("condicoes", JSON.stringify(novasCondicoes))
+      setNovaCondicao("")
+      setMensagem({ tipo: "success", texto: "Condição adicionada!" })
+      setTimeout(() => setMensagem(null), 3000)
+    }
+  }
+
+  const editarCondicao = (condicao: any) => {
+    setEditandoCondicao(condicao)
+    setNovaCondicao(condicao.nome)
+  }
+
+  const salvarEdicaoCondicao = () => {
+    if (editandoCondicao && novaCondicao.trim()) {
+      const novasCondicoes = condicoes.map((c: any) => 
+        c.id === editandoCondicao.id ? { ...c, nome: novaCondicao.toUpperCase() } : c
+      )
+      setCondicoes(novasCondicoes)
+      sessionStorage.setItem("condicoes", JSON.stringify(novasCondicoes))
+      setEditandoCondicao(null)
+      setNovaCondicao("")
+      setMensagem({ tipo: "success", texto: "Condição atualizada!" })
+      setTimeout(() => setMensagem(null), 3000)
+    }
+  }
+
+  const cancelarEdicaoCondicao = () => {
+    setEditandoCondicao(null)
+    setNovaCondicao("")
+  }
+
+  const excluirCondicao = (id: number) => {
+    if (confirm("Tem certeza que deseja excluir esta condição?")) {
+      const novasCondicoes = condicoes.filter((c: any) => c.id !== id)
+      setCondicoes(novasCondicoes)
+      sessionStorage.setItem("condicoes", JSON.stringify(novasCondicoes))
+      setMensagem({ tipo: "success", texto: "Condição excluída!" })
+      setTimeout(() => setMensagem(null), 3000)
+    }
+  }
+
+  const resetarPadrao = async () => {
+    if (confirm("Isso irá restaurar todas as configurações padrão. Continuar?")) {
+      setSaving(true)
+      await updateConfigLoja("TechFlow", null)
+      setPreviewLogo(null)
+      setLogoUrl(null)
+      setNomeLojaTemp("TechFlow")
+      setNomeLoja("TechFlow")
+      
+      const defaultFornecedores = [
+        { id: 1, nome: "NEW STORE" }, { id: 2, nome: "NOVA PEÇAS" },
+        { id: 3, nome: "FLORITEC" }, { id: 4, nome: "VITOR CAMELÃO" }
+      ]
+      setFornecedores(defaultFornecedores)
+      sessionStorage.setItem("fornecedores", JSON.stringify(defaultFornecedores))
+      
+      const defaultMarcas = [
+        { id: 1, nome: "SAMSUNG" }, { id: 2, nome: "APPLE" },
+        { id: 3, nome: "MOTOROLA" }, { id: 4, nome: "XIAOMI" },
+        { id: 5, nome: "LG" }, { id: 6, nome: "ASUS" }, { id: 7, nome: "INFINIX" }
+      ]
+      setMarcas(defaultMarcas)
+      sessionStorage.setItem("marcas", JSON.stringify(defaultMarcas))
+      
+      const defaultCondicoes = [
+        { id: 1, nome: "CONSERTO" }, { id: 2, nome: "GARANTIA" },
+        { id: 3, nome: "LOJA" }, { id: 4, nome: "DEVOLUÇÃO" },
+        { id: 5, nome: "DEVOLUÇÃO PAGA" }, { id: 6, nome: "QUEBRADA" }
+      ]
+      setCondicoes(defaultCondicoes)
+      sessionStorage.setItem("condicoes", JSON.stringify(defaultCondicoes))
+      
+      setMensagem({ tipo: "success", texto: "Configurações restauradas para o padrão!" })
+      setSaving(false)
+      setTimeout(() => setMensagem(null), 3000)
+    }
+  }
+
   const toggleSecao = (secao: string) => {
     setSecaoAberta(secaoAberta === secao ? "" : secao)
   }
 
-  const isAdmin = userRole === "admin" || userRole === "admin_loja" || userRole === "master"
+  const isAdmin = userRole === "admin"
 
   return (
     <div className="p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">

@@ -6,7 +6,7 @@ export default function Configuracoes() {
   const [preview, setPreview] = useState<string | null>(null)
 
   useEffect(() => {
-    const savedLogo = localStorage.getItem("logo_url")
+    const savedLogo = sessionStorage.getItem("logo_url")
     if (savedLogo) {
       setLogoUrl(savedLogo)
       setPreview(savedLogo)
@@ -28,7 +28,7 @@ export default function Configuracoes() {
   const salvarLogo = () => {
     if (preview) {
       setLogoUrl(preview)
-      localStorage.setItem("logo_url", preview)
+      sessionStorage.setItem("logo_url", preview)
       alert("Logo salva com sucesso!")
       window.location.reload()
     }
@@ -37,7 +37,7 @@ export default function Configuracoes() {
   const removerLogo = () => {
     setPreview(null)
     setLogoUrl(null)
-    localStorage.removeItem("logo_url")
+    sessionStorage.removeItem("logo_url")
     alert("Logo removida!")
     window.location.reload()
   }

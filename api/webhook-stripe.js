@@ -9,7 +9,6 @@ const supabase = createClient(
 );
 
 export default async function handler(req, res) {
-  // Apenas aceitar POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -20,17 +19,12 @@ export default async function handler(req, res) {
   let event;
 
   try {
-    event = await stripe.webhooks.constructEvent(
-      req.body,
-      sig,
-      webhookSecret
-    );
+    event = await stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    console.log('✅ Evento recebido:', event.type);
   } catch (err) {
-    console.error(`❌ Webhook signature verification failed: ${err.message}`);
+    console.error(`❌ Erro: ${err.message}`);
     return res.status(400).json({ error: `Webhook Error: ${err.message}` });
   }
-
-  console.log(`📦 Evento recebido: ${event.type}`);
 
   switch (event.type) {
     case 'checkout.session.completed':
@@ -39,54 +33,40 @@ export default async function handler(req, res) {
       const subscriptionId = session.subscription;
       const customerId = session.customer;
 
-      if (subscriptionId) {
-        try {
-          const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-          const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
-          const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000) : null;
-          const planName = subscription.items.data[0]?.price?.nickname || 'Pro';
+      if (subscriptionId && userId) {
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const planName = subscription.items.data[0]?.price?.nickname || 'Pro';
+        const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
+        const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000) : null;
 
-          const { error } = await supabase
-            .from('assinaturas')
-            .upsert({
-              user_id: userId,
-              stripe_subscription_id: subscriptionId,
-              stripe_customer_id: customerId,
-              status: subscription.status,
-              plano: planName,
-              data_inicio: new Date(),
-              data_expiracao: currentPeriodEnd,
-              trial_end: trialEnd,
-              cancel_at_period_end: subscription.cancel_at_period_end,
-            }, { onConflict: 'stripe_subscription_id' });
+        await supabase.from('assinaturas').upsert({
+          user_id: userId,
+          stripe_subscription_id: subscriptionId,
+          stripe_customer_id: customerId,
+          status: subscription.status,
+          plano: planName,
+          data_inicio: new Date(),
+          data_expiracao: currentPeriodEnd,
+          trial_end: trialEnd,
+          cancel_at_period_end: subscription.cancel_at_period_end,
+        }, { onConflict: 'stripe_subscription_id' });
 
-          if (error) {
-            console.error('Erro ao salvar no Supabase:', error);
-          } else {
-            console.log('✅ Assinatura salva com sucesso!');
-          }
-        } catch (err) {
-          console.error('Erro ao processar subscription:', err);
-        }
+        console.log('✅ Assinatura salva:', subscriptionId);
       }
       break;
 
     case 'customer.subscription.updated':
       const updatedSub = event.data.object;
-      const updatedPeriodEnd = new Date(updatedSub.current_period_end * 1000);
-      const updatedTrialEnd = updatedSub.trial_end ? new Date(updatedSub.trial_end * 1000) : null;
-
       await supabase
         .from('assinaturas')
         .update({
           status: updatedSub.status,
-          data_expiracao: updatedPeriodEnd,
-          trial_end: updatedTrialEnd,
+          data_expiracao: new Date(updatedSub.current_period_end * 1000),
+          trial_end: updatedSub.trial_end ? new Date(updatedSub.trial_end * 1000) : null,
           cancel_at_period_end: updatedSub.cancel_at_period_end,
           updated_at: new Date(),
         })
         .eq('stripe_subscription_id', updatedSub.id);
-      console.log('🔄 Assinatura atualizada:', updatedSub.id);
       break;
 
     case 'customer.subscription.deleted':
@@ -95,23 +75,10 @@ export default async function handler(req, res) {
         .from('assinaturas')
         .update({ status: 'canceled', updated_at: new Date() })
         .eq('stripe_subscription_id', deletedSub.id);
-      console.log('❌ Assinatura cancelada:', deletedSub.id);
-      break;
-
-    case 'invoice.payment_failed':
-      const invoice = event.data.object;
-      const subId = invoice.subscription;
-      if (subId) {
-        await supabase
-          .from('assinaturas')
-          .update({ status: 'past_due', updated_at: new Date() })
-          .eq('stripe_subscription_id', subId);
-        console.log('⚠️ Pagamento falhou para:', subId);
-      }
       break;
 
     default:
-      console.log(`📌 Evento não tratado: ${event.type}`);
+      console.log(`Evento não tratado: ${event.type}`);
   }
 
   res.status(200).json({ received: true });

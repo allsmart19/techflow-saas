@@ -11,12 +11,12 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
-    const savedTheme = localStorage.getItem('theme')
+    const savedTheme = sessionStorage.getItem('theme')
     return (savedTheme === 'dark' ? 'dark' : 'light') as Theme
   })
 
   useEffect(() => {
-    localStorage.setItem('theme', theme)
+    sessionStorage.setItem('theme', theme)
     if (theme === 'dark') {
       document.documentElement.classList.add('dark')
     } else {

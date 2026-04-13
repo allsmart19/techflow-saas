@@ -21,7 +21,6 @@ interface Conserto {
   lucro: number
   comissao: number
   tecnico_id: number
-  user_id: number
   usuario_nome?: string
 }
 
@@ -64,58 +63,36 @@ export default function Consertos() {
     if (userStr) {
       const user = JSON.parse(userStr)
       setUserLogado(user)
+      // Se for admin, carregar lista de usuários
+      if (user.role === 'admin') {
+        carregarUsuarios()
+      }
     } else {
       navigate("/login")
     }
   }, [])
 
-  // Carregar usuários quando userLogado estiver disponível e for admin_loja ou master
-  useEffect(() => {
-    if (userLogado && (userLogado.role === 'admin_loja' || userLogado.role === 'master')) {
-      carregarUsuarios()
-    }
-  }, [userLogado])
-
   useEffect(() => {
     if (userLogado?.id) {
       carregarComissaoUsuario()
-      carregarConsertos()
     }
-  }, [userLogado, usuarioSelecionado, mesSelecionado])
-
+  }, [userLogado])
+  
   async function carregarComissaoUsuario() {
     const percentual = await getComissaoPercentual(userLogado?.id)
     setComissaoPercentualUsuario(percentual)
   }
 
-  // Carregar lista de usuários (apenas para admin_loja e master)
+  // Carregar lista de usuários (apenas para admin)
+  // Agora carrega todos os usuários, mas vamos filtrar na exibição
   async function carregarUsuarios() {
-    // Obter loja_id do admin logado
-    const { data: adminInfo, error: adminError } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", userLogado?.id)
-      .single()
-    
-    if (adminError) {
-      console.error("Erro ao obter loja_id:", adminError)
-      return
-    }
-    
-    const lojaId = adminInfo?.loja_id || 1
-    
-    // Carregar todos os técnicos (role = user) da mesma loja
     const { data, error } = await supabase
       .from("usuarios")
       .select("id, username, role, comissao_percentual, ativo")
-      .eq("loja_id", lojaId)
-      .eq("role", "user")
       .order("username")
     
     if (!error && data) {
       setUsuarios(data)
-    } else {
-      console.error("Erro ao carregar usuários:", error)
     }
   }
 
@@ -128,47 +105,33 @@ export default function Consertos() {
       .single()
     
     if (error || !data) {
-      return 10.00
+      return 10.00 // Valor padrão
     }
     return data.comissao_percentual
   }
+
+  // Carregar consertos baseado no perfil
+  useEffect(() => {
+    if (userLogado) {
+      carregarConsertos()
+    }
+  }, [userLogado, usuarioSelecionado, mesSelecionado])
 
   async function carregarConsertos() {
     setLoading(true)
     
     let query = supabase.from("consertos").select("*")
     
-    // Se for admin_loja ou master, mostra consertos da loja
-    if (userLogado?.role === 'admin_loja' || userLogado?.role === 'master') {
-      // Obter loja_id do admin
-      const { data: adminInfo } = await supabase
-        .from("usuarios")
-        .select("loja_id")
-        .eq("id", userLogado?.id)
-        .single()
-      
-      const lojaId = adminInfo?.loja_id || 1
-      
-      // Buscar todos os técnicos da loja
-      const { data: tecnicos } = await supabase
-        .from("usuarios")
-        .select("id")
-        .eq("loja_id", lojaId)
-        .eq("role", "user")
-      
-      const tecnicoIds = tecnicos?.map(t => t.id) || []
-      
-      if (usuarioSelecionado && usuarioSelecionado !== "") {
-        // Filtro por técnico específico
-        query = query.eq("tecnico_id", parseInt(usuarioSelecionado))
-      } else if (tecnicoIds.length > 0) {
-        // Mostra consertos de todos os técnicos da loja
-        query = query.in("tecnico_id", tecnicoIds)
-      }
-    } else {
-      // Usuário comum (técnico): mostra apenas seus próprios consertos
-      query = query.eq("user_id", userLogado?.id)
+    // Se não for admin, mostra apenas os próprios consertos
+    if (userLogado?.role !== 'admin') {
+      query = query.eq("tecnico_id", userLogado?.id)
+    } 
+    // Se for admin e selecionou um usuário específico
+    else if (usuarioSelecionado && usuarioSelecionado !== "") {
+      query = query.eq("tecnico_id", parseInt(usuarioSelecionado))
     }
+    // Se for admin e NÃO selecionou nenhum usuário, mostra todos
+    // (sem filtro)
     
     const { data, error } = await query.order("data", { ascending: false })
     
@@ -176,10 +139,11 @@ export default function Consertos() {
       console.error("Erro ao carregar consertos:", error)
       setConsertos([])
     } else {
+      // Se for admin e não tiver filtro, buscar nomes dos usuários
       let consertosComNomes = data || []
       
-      // Se for admin e não tiver filtro, buscar nomes dos usuários
-      if ((userLogado?.role === 'admin_loja' || userLogado?.role === 'master') && !usuarioSelecionado && consertosComNomes.length > 0) {
+      if (userLogado?.role === 'admin' && !usuarioSelecionado && consertosComNomes.length > 0) {
+        // Buscar informações dos usuários
         const userIds = [...new Set(consertosComNomes.map(c => c.tecnico_id))]
         const { data: usuariosData } = await supabase
           .from("usuarios")
@@ -246,35 +210,53 @@ export default function Consertos() {
     return { totalVendas, totalLucro, totalFrete, comissaoTotal, quantidade }
   }, [consertosFiltrados])
 
-  const handleValorCobradoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/\D/g, '')
-    const valorCobrado = value ? parseFloat(value) / 100 : 0
-    const valorCusto = parseFloat(formData.valor_custo) || 0
-    const lucro = valorCobrado - valorCusto
-    const comissao = lucro * (comissaoPercentualUsuario / 100)
-    
-    setFormData({
-      ...formData,
-      valor_cobrado: valorCobrado.toFixed(2),
-      lucro: lucro.toFixed(2),
-      comissao: comissao.toFixed(2)
-    })
+  // Lista de usuários para o select (apenas quem tem consertos no período selecionado)
+const usuariosComConsertosNoPeriodo = useMemo(() => {
+  if (userLogado?.role !== 'admin') return []
+  
+  // Se não tem mês selecionado, mostrar todos os usuários que têm consertos
+  if (!mesSelecionado) {
+    const usuariosComConsertos = new Set(consertos.map(c => c.tecnico_id))
+    return usuarios.filter(u => usuariosComConsertos.has(u.id))
   }
+  
+  // Filtrar consertos pelo mês selecionado
+  const consertosNoMes = consertos.filter(c => c.data?.substring(3) === mesSelecionado)
+  const usuariosIdsNoMes = new Set(consertosNoMes.map(c => c.tecnico_id))
+  
+  // Retornar usuários que têm consertos no mês selecionado
+  return usuarios.filter(u => usuariosIdsNoMes.has(u.id))
+}, [consertos, usuarios, mesSelecionado, userLogado])
 
-  const handleValorCustoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/\D/g, '')
-    const valorCusto = value ? parseFloat(value) / 100 : 0
-    const valorCobrado = parseFloat(formData.valor_cobrado) || 0
-    const lucro = valorCobrado - valorCusto
-    const comissao = lucro * (comissaoPercentualUsuario / 100)
-    
-    setFormData({
-      ...formData,
-      valor_custo: valorCusto.toFixed(2),
-      lucro: lucro.toFixed(2),
-      comissao: comissao.toFixed(2)
-    })
-  }
+const handleValorCobradoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  let value = e.target.value.replace(/\D/g, '')
+  const valorCobrado = value ? parseFloat(value) / 100 : 0
+  const valorCusto = parseFloat(formData.valor_custo) || 0
+  const lucro = valorCobrado - valorCusto
+  const comissao = lucro * (comissaoPercentualUsuario / 100)
+  
+  setFormData({
+    ...formData,
+    valor_cobrado: valorCobrado.toFixed(2),
+    lucro: lucro.toFixed(2),
+    comissao: comissao.toFixed(2)
+  })
+}
+
+const handleValorCustoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  let value = e.target.value.replace(/\D/g, '')
+  const valorCusto = value ? parseFloat(value) / 100 : 0
+  const valorCobrado = parseFloat(formData.valor_cobrado) || 0
+  const lucro = valorCobrado - valorCusto
+  const comissao = lucro * (comissaoPercentualUsuario / 100)
+  
+  setFormData({
+    ...formData,
+    valor_custo: valorCusto.toFixed(2),
+    lucro: lucro.toFixed(2),
+    comissao: comissao.toFixed(2)
+  })
+}
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -284,11 +266,15 @@ export default function Consertos() {
     const valorCobrado = parseFloat(formData.valor_cobrado) || 0
     const valorCusto = parseFloat(formData.valor_custo) || 0
     
+    // Calcular lucro
     const lucro = valorCobrado - valorCusto
     
-    let tecnicoId = userLogado?.id
+    // Determinar o tecnico_id
+    let tecnicoId = userLogado?.id // Padrão: usuário logado
     
-    if (editandoId && (userLogado?.role === 'admin_loja' || userLogado?.role === 'master')) {
+    // Se for edição e o usuário logado for admin, manter o tecnico_id original
+    if (editandoId && userLogado?.role === 'admin') {
+      // Buscar o conserto original para pegar o tecnico_id
       const { data: consertoOriginal } = await supabase
         .from("consertos")
         .select("tecnico_id")
@@ -300,9 +286,11 @@ export default function Consertos() {
       }
     }
     
+    // Buscar comissão personalizada do TÉCNICO RESPONSÁVEL (não do admin)
     const comissaoPercentual = await getComissaoPercentual(tecnicoId)
     const comissao = lucro * (comissaoPercentual / 100)
     
+    // Tratar o frete (pode ser "NÃO" ou um valor como "R$ 50,00")
     let freteValue = formData.frete
     if (freteValue !== "NÃO" && freteValue && freteValue !== "") {
       let cleanValue = freteValue.replace('R$ ', '').replace(/\./g, '').replace(',', '.')
@@ -323,8 +311,7 @@ export default function Consertos() {
       frete: freteValue,
       lucro: lucro,
       comissao: comissao,
-      tecnico_id: tecnicoId,
-      user_id: userLogado?.id
+      tecnico_id: tecnicoId // Usa o ID correto (original se for admin editando)
     }
     
     let error = null
@@ -379,17 +366,9 @@ export default function Consertos() {
     })
     setModalAberto(true)
   }
-
   const excluirConserto = async (id: number) => {
     if (confirm("Tem certeza que deseja excluir este conserto?")) {
-      let query = supabase.from("consertos").delete().eq("id", id)
-      
-      if (userLogado?.role !== 'admin_loja' && userLogado?.role !== 'master') {
-        query = query.eq("user_id", userLogado?.id)
-      }
-      
-      const { error } = await query
-      
+      const { error } = await supabase.from("consertos").delete().eq("id", id)
       if (error) {
         alert("Erro ao excluir conserto!")
       } else {
@@ -413,7 +392,7 @@ export default function Consertos() {
     const doc = new jsPDF()
     const dataAtual = new Date().toLocaleDateString('pt-BR')
     const periodo = mesSelecionado || "Todos os períodos"
-    const tecnicoInfo = usuarioSelecionado && (userLogado?.role === 'admin_loja' || userLogado?.role === 'master') 
+    const tecnicoInfo = usuarioSelecionado && userLogado?.role === 'admin' 
       ? usuarios.find(u => u.id === parseInt(usuarioSelecionado))?.username 
       : userLogado?.username
     
@@ -447,7 +426,7 @@ export default function Consertos() {
     doc.setFont("helvetica", 'normal')
     
     const headers = ["Data", "Modelo", "Serviço", "Valor", "Custo", "Lucro", "Comissão"]
-    if ((userLogado?.role === 'admin_loja' || userLogado?.role === 'master') && !usuarioSelecionado) {
+    if (userLogado?.role === 'admin' && !usuarioSelecionado) {
       headers.unshift("Técnico")
     }
     
@@ -463,7 +442,7 @@ export default function Consertos() {
           formatCurrency(c.lucro),
           formatCurrency(c.comissao)
         ]
-        if ((userLogado?.role === 'admin_loja' || userLogado?.role === 'master') && !usuarioSelecionado) {
+        if (userLogado?.role === 'admin' && !usuarioSelecionado) {
           row.unshift(c.usuario_nome || "N/A")
         }
         return row
@@ -586,7 +565,7 @@ export default function Consertos() {
               value={mesSelecionado}
               onChange={(e) => {
                 setMesSelecionado(e.target.value)
-                setUsuarioSelecionado("")
+                setUsuarioSelecionado("") // Resetar usuário selecionado ao mudar o mês
               }}
               className="w-full pl-9 pr-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none bg-gray-50 dark:bg-gray-900 appearance-none"
             >
@@ -597,8 +576,8 @@ export default function Consertos() {
             </select>
           </div>
 
-          {/* Seletor de Usuário - Apenas para Admin_loja e Master */}
-          {(userLogado?.role === 'admin_loja' || userLogado?.role === 'master') && (
+          {/* Seletor de Usuário - Apenas para Admin - Mostra apenas usuários com consertos no período */}
+          {userLogado?.role === 'admin' && (
             <div className="relative">
               <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
               <select
@@ -607,15 +586,17 @@ export default function Consertos() {
                 className="w-full pl-9 pr-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none bg-gray-50 dark:bg-gray-900 appearance-none"
               >
                 <option value="">Todos os técnicos</option>
-                {usuarios.map(usuario => (
-                  <option key={usuario.id} value={usuario.id}>
-                    {usuario.username} {!usuario.ativo && "(Inativo)"}
-                  </option>
-                ))}
+                {usuariosComConsertosNoPeriodo
+                  .filter(u => u.role !== 'admin')
+                  .map(usuario => (
+                    <option key={usuario.id} value={usuario.id}>
+                      {usuario.username} {!usuario.ativo && "(Inativo)"}
+                    </option>
+                  ))}
               </select>
-              {usuarios.length === 0 && (
+              {usuariosComConsertosNoPeriodo.filter(u => u.role !== 'admin').length === 0 && (
                 <p className="text-xs text-gray-400 mt-1 absolute -bottom-5 left-0">
-                  Nenhum técnico cadastrado nesta loja
+                  Nenhum técnico com consertos neste período
                 </p>
               )}
             </div>
@@ -626,7 +607,9 @@ export default function Consertos() {
               onClick={() => {
                 setSearch("")
                 setMesSelecionado("")
-                setUsuarioSelecionado("")
+                if (userLogado?.role === 'admin') {
+                  setUsuarioSelecionado("")
+                }
               }}
               className="flex-1 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
             >
@@ -651,31 +634,31 @@ export default function Consertos() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
               <tr>
-              {(userLogado?.role === 'admin_loja' || userLogado?.role === 'master') && !usuarioSelecionado && (
-                <th className="text-left p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">TÉCNICO</th>
-              )}
-              <th className="text-left p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">DATA</th>
-              <th className="text-left p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">MODELO</th>
-              <th className="text-left p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">SERVIÇO</th>
-              <th className="text-right p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">VALOR COBRADO</th>
-              <th className="text-right p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">VALOR CUSTO</th>
-              <th className="text-center p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">FRETE</th>
-              <th className="text-right p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">LUCRO</th>
-              <th className="text-right p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">COMISSÃO</th>
-              <th className="text-center p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">AÇÕES</th>
-            </tr>
+                {userLogado?.role === 'admin' && !usuarioSelecionado && (
+                  <th className="text-left p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">TÉCNICO</th>
+                )}
+                <th className="text-left p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">DATA</th>
+                <th className="text-left p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">MODELO</th>
+                <th className="text-left p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">SERVIÇO</th>
+                <th className="text-right p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">VALOR COBRADO</th>
+                <th className="text-right p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">VALOR CUSTO</th>
+                <th className="text-center p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">FRETE</th>
+                <th className="text-right p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">LUCRO</th>
+                <th className="text-right p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">COMISSÃO</th>
+                <th className="text-center p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">AÇÕES</th>
+              </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
               {consertosFiltrados.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="text-center py-8 text-xs text-gray-500">
+                  <td colSpan={userLogado?.role === 'admin' && !usuarioSelecionado ? 10 : 9} className="text-center py-8 text-xs text-gray-500">
                     Nenhum conserto encontrado
                   </td>
                 </tr>
               ) : (
                 consertosFiltrados.map((conserto) => (
                   <tr key={conserto.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                    {(userLogado?.role === 'admin_loja' || userLogado?.role === 'master') && !usuarioSelecionado && (
+                    {userLogado?.role === 'admin' && !usuarioSelecionado && (
                       <td className="p-2 text-[11px] text-purple-600 dark:text-purple-400 font-medium">
                         {conserto.usuario_nome || "N/A"}
                       </td>
@@ -722,7 +705,6 @@ export default function Consertos() {
             </div>
             
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
-              {/* ... resto do modal (manter como está) ... */}
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">DATA *</label>
                 <input
@@ -790,63 +772,63 @@ export default function Consertos() {
                 </div>
               </div>
               
+              {/* Campo FRETE atualizado para valor digitável */}
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">FRETE</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-xs">R$</span>
-                  
                   <input
-  type="text"
-  value={formData.frete === "NÃO" ? "" : formData.frete}
-  onChange={(e) => {
-    let value = e.target.value
-    // Remove tudo que não for número ou vírgula
-    let numericValue = value.replace(/[^\d,]/g, '')
-    
-    if (numericValue === "") {
-      setFormData({...formData, frete: "NÃO"})
-    } else {
-      // Garantir que só tenha uma vírgula
-      let parts = numericValue.split(',')
-      if (parts.length > 2) {
-        numericValue = parts[0] + ',' + parts.slice(1).join('')
-      }
-      // Limitar a 2 casas decimais
-      if (parts.length === 2 && parts[1].length > 2) {
-        numericValue = parts[0] + ',' + parts[1].substring(0, 2)
-      }
-      setFormData({...formData, frete: numericValue})
-    }
-  }}
-  className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none bg-gray-50 dark:bg-gray-900"
-  placeholder="Digite o valor do frete (ex: 50,00)"
-/>
-
+                    type="text"
+                    value={formData.frete === "NÃO" ? "" : formData.frete.replace('R$ ', '')}
+                    onChange={(e) => {
+                      let value = e.target.value
+                      let numericValue = value.replace(/[^\d,]/g, '')
+                      
+                      if (numericValue === "") {
+                        setFormData({...formData, frete: "NÃO"})
+                      } else {
+                        let cleanValue = numericValue.replace(',', '.')
+                        let num = parseFloat(cleanValue)
+                        if (!isNaN(num)) {
+                          setFormData({...formData, frete: `R$ ${num.toFixed(2)}`})
+                        } else {
+                          setFormData({...formData, frete: value})
+                        }
+                      }
+                    }}
+                    className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none bg-gray-50 dark:bg-gray-900"
+                    placeholder="Digite o valor do frete (ex: 50,00)"
+                  />
                 </div>
-                <p className="text-xs text-gray-400 mt-1">💡 Deixe vazio para marcar como "NÃO" ou digite o valor (ex: 50,00)</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  💡 Deixe vazio para marcar como "NÃO" ou digite o valor (ex: 50,00)
+                </p>
               </div>
               
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">LUCRO (R$)</label>
-                  <input
-                    type="text"
-                    value={displayValor(formData.lucro)}
-                    disabled
-                    className="w-full px-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">COMISSÃO (R$)</label>
-                  <input
-                    type="text"
-                    value={displayValor(formData.comissao)}
-                    disabled
-                    className="w-full px-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
-                  />
-                  <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">💰 Comissão: {comissaoPercentualUsuario}% do lucro</p>
-                </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">LUCRO (R$)</label>
+                <input
+                  type="text"
+                  value={displayValor(formData.lucro)}
+                  disabled
+                  className="w-full px-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
+                />
               </div>
+              
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">COMISSÃO (R$)</label>
+                <input
+                  type="text"
+                  value={displayValor(formData.comissao)}
+                  disabled
+                  className="w-full px-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
+                />
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                  💰 Comissão: {comissaoPercentualUsuario}% do lucro
+                </p>
+              </div>
+            </div>
               
               <div className="flex gap-3 pt-3">
                 <button

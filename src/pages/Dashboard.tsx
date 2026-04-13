@@ -99,7 +99,7 @@ export default function Dashboard() {
   }, [])
 
   async function carregarAssinatura() {
-    const userStr = localStorage.getItem("user")
+    const userStr = sessionStorage.getItem("user")
     if (!userStr) return
     const user = JSON.parse(userStr)
     const assinatura = await getAssinaturaAtiva(user.id)
@@ -108,8 +108,18 @@ export default function Dashboard() {
 
   async function carregarDados() {
     setLoading(true)
-    const { data, error } = await supabase.from("pedidos").select("*")
-    
+    //const { data, error } = await supabase.from("pedidos").select("*")
+    // Obter usuário logado
+const userStr = sessionStorage.getItem("user")
+const user = userStr ? JSON.parse(userStr) : null
+if (!user) return
+
+// Buscar apenas pedidos do usuário
+const { data, error } = await supabase
+  .from("pedidos")
+  .select("*")
+  .eq("user_id", user.id)
+
     if (error) {
       console.error("Erro ao carregar dados:", error)
     } else {

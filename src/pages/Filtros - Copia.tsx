@@ -81,66 +81,28 @@ export default function Filtros() {
     if (savedFornecedor) setFornecedorSelecionado(savedFornecedor)
     if (savedCondicao) setCondicaoSelecionada(savedCondicao)
     
-    carregarDados()
+    carregarPedidos()
+    carregarDadosLocalStorage()
   }, [])
 
-  async function carregarDados() {
-    await carregarPedidos()
-    await carregarListasSupabase()
-  }
-
-  async function carregarPedidos() {
-    const userStr = sessionStorage.getItem("user")
-    const user = userStr ? JSON.parse(userStr) : null
-    if (!user) return
-
-    setLoading(true)
-    const { data, error } = await supabase
-      .from("pedidos")
-      .select("*")
-      .eq("user_id", user.id)
-
-    if (error) {
-      console.error("Erro ao carregar pedidos:", error)
+  // Carregar fornecedores e condições do localStorage
+  async function carregarDadosLocalStorage() {
+    // Carregar fornecedores
+    const savedFornecedores = sessionStorage.getItem("fornecedores")
+    if (savedFornecedores) {
+      const fornecedores = JSON.parse(savedFornecedores)
+      setFornecedoresLista(fornecedores.map((f: any) => f.nome))
     } else {
-      setPedidos(data || [])
-      
-      // Extrair meses únicos dos pedidos do usuário
-      const meses = new Set<string>()
-      data?.forEach((pedido: Pedido) => {
-        if (pedido.data) {
-          const mes = pedido.data.substring(3)
-          meses.add(mes)
-        }
-      })
-      setMesesDisponiveis(Array.from(meses).sort().reverse())
+      setFornecedoresLista(["NEW STORE", "NOVA PEÇAS", "FLORITEC", "VITOR CAMELÃO"])
     }
-    setLoading(false)
-  }
-
-  async function carregarListasSupabase() {
-    const userStr = sessionStorage.getItem("user")
-    const user = userStr ? JSON.parse(userStr) : null
-    if (!user) return
-
-    // Carregar fornecedores do usuário
-    const { data: fornecedoresData } = await supabase
-      .from('fornecedores')
-      .select('nome')
-      .eq('user_id', user.id)
-      .order('nome')
-    if (fornecedoresData) {
-      setFornecedoresLista(fornecedoresData.map(f => f.nome))
-    }
-
-    // Carregar condições do usuário
-    const { data: condicoesData } = await supabase
-      .from('condicoes')
-      .select('nome')
-      .eq('user_id', user.id)
-      .order('nome')
-    if (condicoesData) {
-      setCondicoesLista(condicoesData.map(c => c.nome))
+    
+    // Carregar condições
+    const savedCondicoes = sessionStorage.getItem("condicoes")
+    if (savedCondicoes) {
+      const condicoes = JSON.parse(savedCondicoes)
+      setCondicoesLista(condicoes.map((c: any) => c.nome))
+    } else {
+      setCondicoesLista(["CONSERTO", "GARANTIA", "LOJA", "DEVOLUÇÃO", "DEVOLUÇÃO PAGA", "QUEBRADA"])
     }
   }
 
@@ -159,6 +121,28 @@ export default function Filtros() {
       }
     }
   }, [dataInicio, dataFim, mesSelecionado, fornecedorSelecionado, condicaoSelecionada, pedidos.length])
+
+  async function carregarPedidos() {
+    setLoading(true)
+    const { data, error } = await supabase.from("pedidos").select("*")
+    
+    if (error) {
+      console.error("Erro ao carregar pedidos:", error)
+    } else {
+      setPedidos(data || [])
+      
+      // Extrair meses únicos
+      const meses = new Set<string>()
+      data?.forEach((pedido: Pedido) => {
+        if (pedido.data) {
+          const mes = pedido.data.substring(3)
+          meses.add(mes)
+        }
+      })
+      setMesesDisponiveis(Array.from(meses).sort().reverse())
+    }
+    setLoading(false)
+  }
 
   // Função para converter data do formato brasileiro (dd/mm/aaaa) para string YYYY-MM-DD
   function converterDataParaComparacao(dataStr: string): string {
@@ -343,7 +327,7 @@ export default function Filtros() {
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Filtrar Pedidos</h1>
+        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Filtros Avançados</h1>
         <p className="text-sm text-gray-500 mt-1">Filtre pedidos por período, fornecedor e condição</p>
       </div>
 

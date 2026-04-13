@@ -43,32 +43,23 @@ export default function Relatorios() {
   const [relatorioData, setRelatorioData] = useState<CondicaoTotal | null>(null)
   const [pedidosFiltrados, setPedidosFiltrados] = useState<Pedido[]>([])
 
-  // Carregar pedidos do usuário logado
   useEffect(() => {
     carregarPedidos()
   }, [])
 
   async function carregarPedidos() {
-    const userStr = sessionStorage.getItem("user")
-    const user = userStr ? JSON.parse(userStr) : null
-    if (!user) return
-
     setLoading(true)
-    const { data, error } = await supabase
-      .from("pedidos")
-      .select("*")
-      .eq("user_id", user.id)  // 🔥 Filtro por usuário
-
+    const { data, error } = await supabase.from("pedidos").select("*")
+    
     if (error) {
       console.error("Erro ao carregar pedidos:", error)
     } else {
       setPedidos(data || [])
-
-      // Extrair anos, meses e fornecedores dos pedidos do usuário
+      
       const anos = new Set<string>()
       const meses = new Set<string>()
       const fornecedores = new Set<string>()
-
+      
       data?.forEach((p: Pedido) => {
         if (p.data) {
           const ano = p.data.substring(6)
@@ -80,15 +71,15 @@ export default function Relatorios() {
           fornecedores.add(p.fornecedor)
         }
       })
-
+      
       const anosLista = Array.from(anos).sort().reverse()
       const mesesLista = Array.from(meses).sort().reverse()
       const fornecedoresLista = Array.from(fornecedores).sort()
-
+      
       setAnosDisponiveis(anosLista)
       setMesesDisponiveis(mesesLista)
       setFornecedoresDisponiveis(fornecedoresLista)
-
+      
       if (anosLista.length > 0) setAnoSelecionado(anosLista[0])
       if (mesesLista.length > 0) setMesSelecionado(mesesLista[0])
     }
@@ -97,19 +88,19 @@ export default function Relatorios() {
 
   function gerarRelatorio() {
     setLoading(true)
-
+    
     let filtrados = [...pedidos]
-
+    
     if (tipoRelatorio === "mensal" && mesSelecionado) {
       filtrados = filtrados.filter(p => p.data?.substring(3) === mesSelecionado)
     } else if (tipoRelatorio === "anual" && anoSelecionado) {
       filtrados = filtrados.filter(p => p.data?.substring(6) === anoSelecionado)
     }
-
+    
     if (fornecedorSelecionado && fornecedorSelecionado !== "todos") {
       filtrados = filtrados.filter(p => p.fornecedor === fornecedorSelecionado)
     }
-
+    
     setPedidosFiltrados(filtrados)
     calcularTotais(filtrados)
     setLoading(false)
@@ -123,12 +114,12 @@ export default function Relatorios() {
     let devolucaoPaga = { qtd: 0, valor: 0 }
     let quebrada = { qtd: 0, valor: 0 }
     let freteTotal = 0
-
+    
     pedidosLista.forEach(pedido => {
       const valor = pedido.valor || 0
       const frete = pedido.frete || 0
       freteTotal += frete
-
+      
       switch (pedido.condicao) {
         case "CONSERTO":
           conserto.qtd++
@@ -156,9 +147,9 @@ export default function Relatorios() {
           break
       }
     })
-
+    
     const totalGeral = conserto.valor + garantia.valor + loja.valor
-
+    
     setRelatorioData({
       conserto,
       garantia,
@@ -177,7 +168,7 @@ export default function Relatorios() {
     const periodo = tipoRelatorio === "mensal" ? mesSelecionado : anoSelecionado
     const nomeFornecedor = fornecedorSelecionado && fornecedorSelecionado !== "todos" ? fornecedorSelecionado : "Todos os fornecedores"
     const dataAtual = new Date().toLocaleDateString('pt-BR')
-
+    
     // Cabeçalho principal
     doc.setFillColor(139, 92, 246)
     doc.rect(0, 0, 210, 35, 'F')
@@ -188,7 +179,7 @@ export default function Relatorios() {
     doc.text("Relatório de Pedidos", 14, 28)
     doc.setFontSize(8)
     doc.text(`Gerado em: ${dataAtual}`, 150, 28, { align: 'right' })
-
+    
     // Informações do Relatório
     doc.setTextColor(0, 0, 0)
     doc.setFillColor(245, 245, 250)
@@ -196,56 +187,56 @@ export default function Relatorios() {
     doc.setDrawColor(139, 92, 246)
     doc.setLineWidth(0.5)
     doc.rect(14, 45, 182, 30)
-
+    
     doc.setFontSize(9)
     doc.setFont("helvetica", 'bold')
     doc.setTextColor(139, 92, 246)
     doc.text("Informações do Relatório", 20, 55)
-
+    
     doc.setFont("helvetica", 'normal')
     doc.setTextColor(0, 0, 0)
     doc.setFontSize(8)
     doc.text(`Período: ${periodo}`, 20, 65)
     doc.text(`Tipo: ${tipoRelatorio === "mensal" ? "Relatório Mensal" : "Relatório Anual"}`, 80, 65)
     doc.text(`Fornecedor: ${nomeFornecedor}`, 20, 72)
-
+    
     // Resumo do Período
     let currentY = 88
     doc.setFontSize(10)
     doc.setFont("helvetica", 'bold')
     doc.setTextColor(0, 0, 0)
     doc.text("Resumo do Período", 14, currentY)
-
+    
     currentY += 6
     doc.setFontSize(8)
     doc.setFont("helvetica", 'normal')
-
+    
     doc.setFillColor(245, 245, 245)
     doc.rect(14, currentY, 182, 8, 'F')
     doc.text("Total de Pedidos:", 20, currentY + 5.5)
     doc.text(`${relatorioData?.totalPedidos || 0}`, 180, currentY + 5.5, { align: 'right' })
-
+    
     currentY += 9
     doc.text("Faturamento Total:", 20, currentY + 5.5)
     doc.text(`${formatCurrency(relatorioData?.totalGeral || 0)}`, 180, currentY + 5.5, { align: 'right' })
-
+    
     currentY += 9
     doc.text("Ticket Médio:", 20, currentY + 5.5)
     doc.text(`${formatCurrency(relatorioData && relatorioData.totalPedidos > 0 ? relatorioData.totalGeral / relatorioData.totalPedidos : 0)}`, 180, currentY + 5.5, { align: 'right' })
-
+    
     currentY += 9
     doc.text("Frete Total:", 20, currentY + 5.5)
     doc.text(`${formatCurrency(relatorioData?.freteTotal || 0)}`, 180, currentY + 5.5, { align: 'right' })
-
-    // Tabela de Condições
+    
+    // Tabela de Condições - ALINHADA CORRETAMENTE
     currentY += 12
     doc.setFontSize(10)
     doc.setFont("helvetica", 'bold')
     doc.text("Detalhamento por Condição", 14, currentY)
-
+    
     const tabelaCondicoes = [
       ["Condição", "Quantidade", "Valor Total", "%"],
-      ["CONSERTO", relatorioData?.conserto.qtd.toString() || "0", formatCurrency(relatorioData?.conserto.valor || 0),
+      ["CONSERTO", relatorioData?.conserto.qtd.toString() || "0", formatCurrency(relatorioData?.conserto.valor || 0), 
         `${relatorioData && relatorioData.totalGeral > 0 ? ((relatorioData.conserto.valor / relatorioData.totalGeral) * 100).toFixed(1) : 0}%`],
       ["GARANTIA", relatorioData?.garantia.qtd.toString() || "0", formatCurrency(relatorioData?.garantia.valor || 0),
         `${relatorioData && relatorioData.totalGeral > 0 ? ((relatorioData.garantia.valor / relatorioData.totalGeral) * 100).toFixed(1) : 0}%`],
@@ -259,7 +250,7 @@ export default function Relatorios() {
         `${relatorioData && relatorioData.totalGeral > 0 ? ((relatorioData.quebrada.valor / relatorioData.totalGeral) * 100).toFixed(1) : 0}%`],
       ["TOTAL", relatorioData?.totalPedidos.toString() || "0", formatCurrency(relatorioData?.totalGeral || 0), "100%"]
     ]
-
+    
     autoTable(doc, {
       startY: currentY + 6,
       head: [tabelaCondicoes[0]],
@@ -275,10 +266,10 @@ export default function Relatorios() {
       },
       margin: { left: 14, right: 14 }
     })
-
+    
     let finalY = (doc as any).lastAutoTable.finalY + 8
-
-    // Lista de Pedidos
+    
+    // Lista de Pedidos - COM MESMA LARGURA
     if (pedidosFiltrados.length > 0) {
       doc.setFontSize(10)
       doc.setFont("helvetica", 'bold')
@@ -286,7 +277,7 @@ export default function Relatorios() {
       doc.setFontSize(7)
       doc.setFont("helvetica", 'normal')
       doc.text(`${pedidosFiltrados.length} pedidos encontrados`, 14, finalY + 5)
-
+      
       const tabelaPedidos = [
         ["Data", "Código", "Modelo", "Condição", "Valor"],
         ...pedidosFiltrados.slice(0, 25).map(p => [
@@ -297,11 +288,11 @@ export default function Relatorios() {
           formatCurrency(p.valor)
         ])
       ]
-
+      
       if (pedidosFiltrados.length > 25) {
         tabelaPedidos.push(["", "", `... e mais ${pedidosFiltrados.length - 25} pedidos`, "", ""])
       }
-
+      
       autoTable(doc, {
         startY: finalY + 8,
         head: [tabelaPedidos[0]],
@@ -319,7 +310,7 @@ export default function Relatorios() {
         margin: { left: 14, right: 14 }
       })
     }
-
+    
     // Rodapé
     const pageCount = doc.getNumberOfPages()
     for (let i = 1; i <= pageCount; i++) {
@@ -328,7 +319,7 @@ export default function Relatorios() {
       doc.setTextColor(128, 128, 128)
       doc.text(`TechFlow - Relatório de Pedidos - Página ${i} de ${pageCount}`, 14, doc.internal.pageSize.height - 8)
     }
-
+    
     const nomeArquivo = `relatorio_${tipoRelatorio}_${periodo}_${nomeFornecedor.replace(/\s/g, '_')}.pdf`
     doc.save(nomeArquivo)
   }

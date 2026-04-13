@@ -22,21 +22,56 @@ export async function signUpWithEmail(email: string, password: string, username:
 
     if (authError) throw authError;
 
-    // 2. Inserir na tabela usuarios (sem o campo senha)
     if (authData.user) {
-      const { error: insertError } = await supabase
-        .from('usuarios')
+      // 2. Criar uma nova loja para o usuário
+      const slug = username.toLowerCase().replace(/\s/g, '-') + '-' + Date.now();
+      const { data: lojaData, error: lojaError } = await supabase
+        .from('lojas')
         .insert({
-          username: username.toLowerCase(),
-          email: email,
-          role: 'user',
-          ativo: true,
-          comissao_percentual: 10.00
-          // senha NÃO é enviada (será NULL)
-        });
+          nome_loja: `${username} - TechFlow`,
+          slug: slug,
+          plano: 'pro',
+          ativo: true
+        })
+        .select()
+        .single();
 
-      if (insertError && insertError.code !== '23505') {
-        console.error('Erro ao inserir usuario:', insertError);
+      if (lojaError) {
+        console.error('Erro ao criar loja:', lojaError);
+        // Se falhar ao criar loja, usar loja padrão (id=2)
+        const { data: lojaPadrao } = await supabase
+          .from('lojas')
+          .select('id')
+          .eq('id', 2)
+          .single();
+        
+        // 3. Inserir na tabela usuarios como admin_loja
+        const { error: insertError } = await supabase
+          .from('usuarios')
+          .insert({
+            username: username.toLowerCase(),
+            email: email,
+            role: 'admin_loja',  // 🔥 ADMINISTRADOR DA LOJA
+            ativo: true,
+            comissao_percentual: 10.00,
+            loja_id: lojaPadrao?.id || 2
+          });
+        
+        if (insertError) console.error('Erro ao inserir usuario:', insertError);
+      } else {
+        // 3. Inserir na tabela usuarios como admin_loja com a loja criada
+        const { error: insertError } = await supabase
+          .from('usuarios')
+          .insert({
+            username: username.toLowerCase(),
+            email: email,
+            role: 'admin_loja',  // 🔥 ADMINISTRADOR DA LOJA
+            ativo: true,
+            comissao_percentual: 10.00,
+            loja_id: lojaData.id
+          });
+        
+        if (insertError) console.error('Erro ao inserir usuario:', insertError);
       }
     }
 
@@ -58,15 +93,16 @@ export async function signInWithEmail(email: string, password: string) {
     // Buscar dados do usuário na tabela usuarios
     const { data: userData } = await supabase
       .from('usuarios')
-      .select('id, username, role')
+      .select('id, username, role, loja_id')
       .eq('email', email)
       .single();
 
-    localStorage.setItem('user', JSON.stringify({
+    sessionStorage.setItem('user', JSON.stringify({
       id: userData?.id,
       username: userData?.username || data.user?.user_metadata?.username,
       email: data.user?.email,
-      role: userData?.role || 'user'
+      role: userData?.role || 'user',
+      loja_id: userData?.loja_id
     }));
 
     return { success: true, data };
@@ -92,7 +128,7 @@ export async function signInWithGoogle() {
 }
 
 export async function signOut() {
-  localStorage.removeItem('user');
+  sessionStorage.removeItem("user");
   await supabase.auth.signOut();
 }
 
@@ -102,7 +138,7 @@ export async function getCurrentUser() {
 
   const { data: userData } = await supabase
     .from('usuarios')
-    .select('id, username, role')
+    .select('id, username, role, loja_id')
     .eq('email', user.email)
     .single();
 
@@ -110,6 +146,7 @@ export async function getCurrentUser() {
     id: userData?.id,
     username: userData?.username || user.user_metadata?.username,
     email: user.email,
-    role: userData?.role || 'user'
+    role: userData?.role || 'user',
+    loja_id: userData?.loja_id
   };
 }

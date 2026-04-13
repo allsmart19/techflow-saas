@@ -3,66 +3,103 @@ import { supabase } from '../lib/supabase';
 
 export interface ConfigLoja {
   user_id: number;
+  loja_id: number;
   nome_loja: string;
   logo_url: string | null;
 }
 
 export async function getConfigLoja(): Promise<ConfigLoja | null> {
   try {
-    const userStr = localStorage.getItem("user");
-    const user = userStr ? JSON.parse(userStr) : null;
-    if (!user) return null;
+    const userStr = sessionStorage.getItem("user")
+    const user = userStr ? JSON.parse(userStr) : null
+    if (!user) return null
 
+    // Primeiro, obter a loja_id do usuário logado
+    const { data: userInfo, error: userError } = await supabase
+      .from("usuarios")
+      .select("loja_id")
+      .eq("id", user.id)
+      .single()
+
+    if (userError) {
+      console.error("Erro ao obter loja_id do usuário:", userError)
+      return null
+    }
+
+    const lojaId = userInfo?.loja_id || 1
+
+    // Buscar configuração da loja pela loja_id
     const { data, error } = await supabase
       .from('config_loja')
       .select('*')
-      .eq('user_id', user.id)
-      .single();
+      .eq('loja_id', lojaId)
+      .single()
 
     if (error) {
-      // Se não existir configuração, criar uma padrão
+      // Se não existir configuração para esta loja, criar uma padrão
       if (error.code === 'PGRST116') {
         const defaultConfig = {
-          user_id: user.id,
-          nome_loja: 'TechFlow',
+          loja_id: lojaId,
+          nome_loja: 'Sua Loja',
           logo_url: null
-        };
-        await supabase.from('config_loja').insert([defaultConfig]);
-        return defaultConfig;
+        }
+        const { error: insertError } = await supabase
+          .from('config_loja')
+          .insert([defaultConfig])
+        
+        if (insertError) {
+          console.error("Erro ao criar configuração padrão:", insertError)
+          return { ...defaultConfig, user_id: user.id }
+        }
+        return { ...defaultConfig, user_id: user.id }
       }
-      console.error('Erro ao carregar config:', error);
-      return null;
+      console.error('Erro ao carregar config:', error)
+      return null
     }
     
-    return data;
+    return { ...data, user_id: user.id }
   } catch (error) {
-    console.error('Erro:', error);
-    return null;
+    console.error('Erro:', error)
+    return null
   }
 }
 
 export async function updateConfigLoja(nome_loja: string, logo_url: string | null): Promise<boolean> {
   try {
-    const userStr = localStorage.getItem("user");
-    const user = userStr ? JSON.parse(userStr) : null;
-    if (!user) return false;
+    const userStr = sessionStorage.getItem("user")
+    const user = userStr ? JSON.parse(userStr) : null
+    if (!user) return false
+
+    // Obter a loja_id do usuário logado
+    const { data: userInfo, error: userError } = await supabase
+      .from("usuarios")
+      .select("loja_id")
+      .eq("id", user.id)
+      .single()
+
+    if (userError) {
+      console.error("Erro ao obter loja_id:", userError)
+      return false
+    }
+
+    const lojaId = userInfo?.loja_id || 1
 
     const { error } = await supabase
       .from('config_loja')
       .upsert({
-        user_id: user.id,
+        loja_id: lojaId,
         nome_loja,
         logo_url
-      }, { onConflict: 'user_id' });
+      }, { onConflict: 'loja_id' })
     
     if (error) {
-      console.error('Erro ao salvar config:', error);
-      return false;
+      console.error('Erro ao salvar config:', error)
+      return false
     }
     
-    return true;
+    return true
   } catch (error) {
-    console.error('Erro:', error);
-    return false;
+    console.error('Erro:', error)
+    return false
   }
 }
