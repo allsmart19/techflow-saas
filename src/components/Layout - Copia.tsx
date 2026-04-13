@@ -19,31 +19,19 @@ import {
 } from "lucide-react"
 import { useTheme } from "../context/ThemeContext"
 import { getConfigLoja } from "../services/configService"
-// import { isAcessoLiberado } from "../services/assinaturaService" // Desabilitado temporariamente
+import { getPermissoesUsuario, Permissoes } from "../services/permissaoService"
 
-// Menu para usuários comuns (sem Usuários e sem Assinatura)
-const userMenuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
-  { icon: Package, label: "Pedidos", path: "/pedidos" },
-  { icon: Wrench, label: "Consertos", path: "/consertos" },
-  { icon: Plus, label: "Novo Pedido", path: "/novo" },
-  { icon: Filter, label: "Filtros Avançados", path: "/filtros" },
-  { icon: BarChart3, label: "Relatórios", path: "/relatorios" },
-  { icon: CreditCard, label: "Assinatura", path: "/assinatura" },
-  { icon: Settings, label: "Ajustes", path: "/ajustes" },
-]
-
-// Menu de administrador (com Usuários e Assinatura)
-const adminMenuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
-  { icon: Package, label: "Pedidos", path: "/pedidos" },
-  { icon: Wrench, label: "Consertos", path: "/consertos" },
-  { icon: Plus, label: "Novo Pedido", path: "/novo" },
-  { icon: Filter, label: "Filtros Avançados", path: "/filtros" },
-  { icon: BarChart3, label: "Relatórios", path: "/relatorios" },
-  { icon: Users, label: "Usuários", path: "/usuarios" },
-  { icon: CreditCard, label: "Assinatura", path: "/assinatura" },
-  { icon: Settings, label: "Ajustes", path: "/ajustes" },
+// Lista de todos os itens de menu com suas permissões
+const todosMenuItems = [
+  { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard", permissao: "dashboard" },
+  { icon: Package, label: "Pedidos", path: "/pedidos", permissao: "pedidos" },
+  { icon: Wrench, label: "Consertos", path: "/consertos", permissao: "consertos" },
+  { icon: Plus, label: "Novo Pedido", path: "/novo", permissao: "novo_pedido" },
+  { icon: Filter, label: "Filtrar Pedidos", path: "/filtros", permissao: "filtros" },
+  { icon: BarChart3, label: "Relatórios", path: "/relatorios", permissao: "relatorios" },
+  { icon: Users, label: "Usuários", path: "/usuarios", permissao: "usuarios" },
+  { icon: CreditCard, label: "Assinatura", path: "/assinatura", permissao: "assinatura" },
+  { icon: Settings, label: "Ajustes", path: "/ajustes", permissao: "ajustes" },
 ]
 
 export default function Layout() {
@@ -55,24 +43,41 @@ export default function Layout() {
   const [nomeLoja, setNomeLoja] = useState("TechFlow")
   const [userRole, setUserRole] = useState<string>("")
   const [accessLoading, setAccessLoading] = useState(true)
-  const [accessGranted, setAccessGranted] = useState(false)
+  const [menuItems, setMenuItems] = useState(todosMenuItems)
 
-  // Carregar configurações do Supabase e role do usuário
   useEffect(() => {
     carregarConfiguracoes()
-    carregarUserRole()
+    carregarUserData()
   }, [])
 
-  // ============================================================
-  // VERIFICAÇÃO DE ACESSO DESABILITADA TEMPORARIAMENTE
-  // ============================================================
-  useEffect(() => {
-    // Permite acesso a todas as rotas sem restrição para testes
-    setAccessGranted(true)
+  async function carregarUserData() {
+    const savedUser = sessionStorage.getItem("user")
+    if (savedUser) {
+      const user = JSON.parse(savedUser)
+      setUserRole(user.role || "user")
+      
+      // Master ou admin_loja: mostra todos os itens
+      if (user.role === 'master' || user.role === 'admin_loja') {
+        setMenuItems(todosMenuItems)
+        setAccessLoading(false)
+        return
+      }
+      
+      // Técnico: filtrar por permissões
+      try {
+        const permissoes = await getPermissoesUsuario(user.id)
+        const itemsFiltrados = todosMenuItems.filter(item => {
+          return permissoes[item.permissao as keyof Permissoes] === true
+        })
+        setMenuItems(itemsFiltrados.length > 0 ? itemsFiltrados : todosMenuItems.slice(0, 3))
+      } catch (error) {
+        console.error("Erro ao carregar permissões:", error)
+        setMenuItems(todosMenuItems.slice(0, 3))
+      }
+    }
     setAccessLoading(false)
-  }, [])
+  }
 
-  // Funções auxiliares (mantidas)
   async function carregarConfiguracoes() {
     const config = await getConfigLoja()
     if (config) {
@@ -81,19 +86,9 @@ export default function Layout() {
     }
   }
 
-  function carregarUserRole() {
-    const savedUser = sessionStorage.getItem("user")
-    if (savedUser) {
-      const user = JSON.parse(savedUser)
-      setUserRole(user.role || "user")
-    }
-  }
-
-  // Escutar mudanças na configuração (quando salvar em outra aba)
   useEffect(() => {
     const handleStorageChange = () => {
       carregarConfiguracoes()
-      carregarUserRole()
     }
     window.addEventListener("storage", handleStorageChange)
     return () => window.removeEventListener("storage", handleStorageChange)
@@ -104,17 +99,12 @@ export default function Layout() {
     navigate("/login")
   }
 
-  // Definir quais itens do menu mostrar baseado no role
-  const currentMenuItems = userRole === "admin" ? adminMenuItems : userMenuItems
-
-  // Função de navegação
   const handleNavigation = (path: string) => {
     if (location.pathname !== path) {
       navigate(path)
     }
   }
 
-  // Enquanto verifica acesso, mostra loading
   if (accessLoading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">
@@ -123,20 +113,13 @@ export default function Layout() {
     )
   }
 
-  // Se acesso não foi concedido (desabilitado, nunca ocorrerá), não renderiza
-  if (!accessGranted && userRole !== "admin") {
-    return null
-  }
-
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
-      {/* Sidebar */}
       <aside 
         className={`relative bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-all duration-300 shrink-0 ${
           collapsed ? "w-20" : "w-64"
         }`}
       >
-        {/* Botão de recolher/expandir */}
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="absolute -right-3 top-20 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-full p-1 hover:bg-gray-100 dark:hover:bg-gray-600 transition z-10 shadow-md"
@@ -144,7 +127,6 @@ export default function Layout() {
           {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </button>
 
-        {/* Logo / Header */}
         <div className={`p-5 text-center border-b border-gray-200 dark:border-gray-700 transition-all ${collapsed ? "px-2" : ""}`}>
           <div className="flex flex-col items-center">
             {logoUrl ? (
@@ -167,10 +149,9 @@ export default function Layout() {
           </div>
         </div>
 
-        {/* Menu de navegação */}
         <nav className="flex-1 py-4 overflow-y-auto">
           <div className="space-y-1 px-3">
-            {currentMenuItems.map((item) => {
+            {menuItems.map((item) => {
               const Icon = item.icon
               const isActive = location.pathname === item.path
               return (
@@ -194,7 +175,6 @@ export default function Layout() {
           </div>
         </nav>
 
-        {/* Botões inferiores */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
           <button
             onClick={toggleTheme}
@@ -220,7 +200,6 @@ export default function Layout() {
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden">
         <Outlet />
       </main>

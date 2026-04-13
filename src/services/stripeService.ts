@@ -48,13 +48,9 @@ export const planos: PlanoAssinatura[] = [
 // ============================================================
 export async function criarCheckoutSession(priceId: string, userId: number, userEmail: string) {
   try {
-    console.log('🔄 Criando sessão de checkout...', { priceId, userId, userEmail });
-    
-    const response = await fetch('/api/create-checkout-session', {
+    const response = await fetch('https://cduouekisanwxmmpgufz.supabase.co/functions/v1/create-checkout', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         priceId,
         userId,
@@ -65,15 +61,13 @@ export async function criarCheckoutSession(priceId: string, userId: number, user
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     const session = await response.json();
-    console.log('✅ Sessão criada:', session);
     return session;
   } catch (error) {
-    console.error('❌ Erro ao criar sessão de checkout:', error);
+    console.error('❌ Erro ao criar sessão:', error);
     throw error;
   }
 }
@@ -109,7 +103,7 @@ export async function criarPortalSession(customerId: string) {
 // ============================================================
 // FUNÇÃO PARA BUSCAR ASSINATURA ATIVA DO USUÁRIO
 // ============================================================
-export async function getAssinaturaAtiva(userId: number) {
+export async function getAssinaturaAtiva(userId: string) {
   try {
     const { data, error } = await supabase
       .from('assinaturas')
