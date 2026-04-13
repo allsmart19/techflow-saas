@@ -10,7 +10,7 @@ const PLANOS = {
     nome: "Plano Pro",
     preco: 29.90,
     periodo: "month",
-    priceId: "price_1TJkMhGhIX9bHHYRz3yMVprr", // Seu price_id do Stripe
+    priceId: "price_1TLjr5GhIX9bHHYRDJIJFgqh", // Seu price_id do Stripe
     descricao: [
       'Gestão ilimitada de pedidos',
       'Relatórios avançados',
@@ -23,7 +23,7 @@ const PLANOS = {
     nome: "Plano Pro Anual",
     preco: 299.90,
     periodo: "year",
-    priceId: "price_1TJkNzGhIX9bHHYRQVnOIx3S", // Seu price_id do Stripe
+    priceId: "price_1TLjr5GhIX9bHHYRy5GLVQa6", // Seu price_id do Stripe
     descricao: [
       'Todos os recursos do plano mensal',
       '2 meses grátis',
