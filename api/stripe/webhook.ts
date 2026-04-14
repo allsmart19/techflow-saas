@@ -90,7 +90,10 @@ export default async function handler(req: any, res: any) {
         stripe_customer_id: session.customer as string,
 
         status: subscription.status,
-        plano: subscription.items.data[0]?.price?.id || "unknown",
+        plano: subscription.items.data[0]?.price?.nickname || 
+       (subscription.items.data[0]?.price?.id === "price_1TLlGuGhIX9bHHYRIwSV4W4o" ? "Plano Pro Mensal" :
+        subscription.items.data[0]?.price?.id === "price_1TLlJqGhIX9bHHYRPHdBYv09" ? "Plano Pro Anual" : 
+        "Pro"),
 
         data_inicio: safeDate((subscription as any).current_period_start),
         data_expiracao: safeDate((subscription as any).current_period_end),
