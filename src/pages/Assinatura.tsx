@@ -86,26 +86,25 @@ export default function Assinatura() {
     return () => clearInterval(interval)
   }, [])
 
-  async function carregarAssinatura(userId: string) {
-    try {
-      const { data, error } = await supabase
-        .from("assinaturas")
-        .select("*")
-        .eq("user_id", userId)
-        .in("status", ["active", "trialing"])
-        .maybeSingle()
+async function carregarAssinatura(userId: string) {
+  try {
+    // 🔥 Use maybeSingle() em vez de single() para evitar erro com múltiplas linhas
+    const { data, error } = await supabase
+      .from("assinaturas")
+      .select("*")
+      .eq("user_id", userId)
+      .in("status", ["active", "trialing"])
+      .maybeSingle();  // ← mudar de single() para maybeSingle()
 
-      if (error) throw error
-      setAssinaturaAtiva(data)
-
-    } catch (error) {
-      console.error("Erro ao carregar assinatura:", error)
-      setAssinaturaAtiva(null)
-    } finally {
-      setLoading(false)
-    }
+    if (error) throw error;
+    setAssinaturaAtiva(data);
+  } catch (error) {
+    console.error("Erro ao carregar assinatura:", error);
+    setAssinaturaAtiva(null);
+  } finally {
+    setLoading(false);
   }
-
+}
   async function carregarTrialInfo() {
     const userStr = sessionStorage.getItem("user")
     if (!userStr) return
@@ -185,40 +184,37 @@ export default function Assinatura() {
   }
 
 const handleGerenciarAssinatura = async () => {
-  if (!assinaturaAtiva?.stripe_customer_id) {
-    alert("Nenhuma assinatura encontrada");
+  const customerId = assinaturaAtiva?.stripe_customer_id;
+  
+  if (!customerId) {
+    alert("Nenhum customer ID encontrado.");
     return;
   }
 
   setProcessando(true);
 
   try {
-    const response = await fetch("/api/stripe/create-portal", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        customerId: assinaturaAtiva.stripe_customer_id
-      })
+    // 🔥 Use a URL completa da Vercel
+    const response = await fetch('https://techflow-saas-livid.vercel.app/api/stripe/create-portal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customerId })
     });
 
+    const data = await response.json();
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || "Erro ao acessar portal");
+      throw new Error(data.error || 'Erro ao acessar portal');
     }
 
-    const data = await response.json();
-    
     if (data.url) {
       window.location.href = data.url;
     } else {
-      throw new Error("URL não retornada");
+      throw new Error('URL não retornada');
     }
-
   } catch (error: any) {
-    console.error("Erro ao criar portal session:", error);
-    alert(error.message || "Erro ao acessar o portal. Tente novamente.");
+    console.error(error);
+    alert(error.message || "Erro ao acessar o portal");
   } finally {
     setProcessando(false);
   }
