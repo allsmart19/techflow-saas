@@ -25,53 +25,39 @@ export async function signUpWithEmail(email: string, password: string, username:
     if (authData.user) {
       // 2. Criar uma nova loja para o usuário
       const slug = username.toLowerCase().replace(/\s/g, '-') + '-' + Date.now();
+      
       const { data: lojaData, error: lojaError } = await supabase
         .from('lojas')
         .insert({
           nome_loja: `${username} - TechFlow`,
           slug: slug,
-          plano: 'pro',
-          ativo: true
+          plano: 'trial',
+          ativo: true,
+          created_at: new Date()  // 🔥 DATA DE CRIAÇÃO PARA CONTAR OS 7 DIAS
         })
         .select()
         .single();
 
       if (lojaError) {
         console.error('Erro ao criar loja:', lojaError);
-        // Se falhar ao criar loja, usar loja padrão (id=2)
-        const { data: lojaPadrao } = await supabase
-          .from('lojas')
-          .select('id')
-          .eq('id', 2)
-          .single();
-        
-        // 3. Inserir na tabela usuarios como admin_loja
-        const { error: insertError } = await supabase
-          .from('usuarios')
-          .insert({
-            username: username.toLowerCase(),
-            email: email,
-            role: 'admin_loja',  // 🔥 ADMINISTRADOR DA LOJA
-            ativo: true,
-            comissao_percentual: 10.00,
-            loja_id: lojaPadrao?.id || 2
-          });
-        
-        if (insertError) console.error('Erro ao inserir usuario:', insertError);
-      } else {
-        // 3. Inserir na tabela usuarios como admin_loja com a loja criada
-        const { error: insertError } = await supabase
-          .from('usuarios')
-          .insert({
-            username: username.toLowerCase(),
-            email: email,
-            role: 'admin_loja',  // 🔥 ADMINISTRADOR DA LOJA
-            ativo: true,
-            comissao_percentual: 10.00,
-            loja_id: lojaData.id
-          });
-        
-        if (insertError) console.error('Erro ao inserir usuario:', insertError);
+        throw lojaError;
+      }
+
+      // 3. Inserir na tabela usuarios como admin_loja
+      const { error: insertError } = await supabase
+        .from('usuarios')
+        .insert({
+          username: username.toLowerCase(),
+          email: email,
+          role: 'admin_loja',
+          ativo: true,
+          comissao_percentual: 10.00,
+          loja_id: lojaData.id
+        });
+
+      if (insertError) {
+        console.error('Erro ao inserir usuario:', insertError);
+        throw insertError;
       }
     }
 

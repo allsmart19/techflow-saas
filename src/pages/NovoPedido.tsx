@@ -168,77 +168,79 @@ export default function NovoPedido() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    const userStr = sessionStorage.getItem("user")
-    const user = userStr ? JSON.parse(userStr) : null
-    if (!user) {
-      alert("Usuário não identificado. Faça login novamente.")
-      navigate("/login")
-      return
-    }
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
+  
+  const userStr = sessionStorage.getItem("user")
+  const user = userStr ? JSON.parse(userStr) : null
+  if (!user) {
+    alert("Usuário não identificado.")
+    navigate("/login")
+    return
+  }
 
-    // Obter loja_id do usuário logado
-    const { data: userInfo, error: userError } = await supabase
+  // 🔥 BUSCAR LOJA_ID DO USUÁRIO
+  let lojaId = user.loja_id
+  
+  if (!lojaId) {
+    const { data } = await supabase
       .from("usuarios")
       .select("loja_id")
       .eq("id", user.id)
       .single()
-
-    if (userError) {
-      console.error("Erro ao obter loja_id:", userError)
-      alert("Erro ao obter informações da loja!")
-      return
-    }
-
-    const lojaId = userInfo?.loja_id || 1
-
-    setLoading(true)
-
-    const dataFormatada = new Date(formData.data).toLocaleDateString('pt-BR')
-    const vencimentoFormatado = new Date(formData.data_vencimento).toLocaleDateString('pt-BR')
-
-    const pedidoData = {
-      codigo: formData.codigo || null,
-      modelo: formData.modelo.toUpperCase(),
-      marca: formData.marca,
-      valor: parseFloat(formData.valor) || 0,
-      frete: parseFloat(formData.frete) || 0,
-      data: dataFormatada,
-      data_vencimento: vencimentoFormatado,
-      fornecedor: formData.fornecedor,
-      condicao: formData.condicao,
-      observacoes: formData.observacoes,
-      user_id: user.id,
-      loja_id: lojaId  // 🔥 ADICIONADO
-    }
-
-    let error = null
-
-    if (isEditing && editingId) {
-      const { error: updateError } = await supabase
-        .from("pedidos")
-        .update(pedidoData)
-        .eq("id", editingId)
-      error = updateError
-    } else {
-      const { error: insertError } = await supabase
-        .from("pedidos")
-        .insert([pedidoData])
-      error = insertError
-    }
-
-    setLoading(false)
-
-    if (error) {
-      console.error("Erro detalhado:", error)
-      alert(`Erro ao ${isEditing ? "atualizar" : "salvar"} pedido: ${error.message}`)
-    } else {
-      alert(`✅ Pedido ${isEditing ? "atualizado" : "salvo"} com sucesso!`)
-      navigate("/pedidos")
-    }
+    lojaId = data?.loja_id
   }
+
+  if (!lojaId) {
+    alert("Erro: Usuário não vinculado a uma loja. Contate o administrador.")
+    return
+  }
+
+  setLoading(true)
+
+  const dataFormatada = new Date(formData.data).toLocaleDateString('pt-BR')
+  const vencimentoFormatado = new Date(formData.data_vencimento).toLocaleDateString('pt-BR')
+
+  const pedidoData = {
+    codigo: formData.codigo || null,
+    modelo: formData.modelo.toUpperCase(),
+    marca: formData.marca,
+    valor: parseFloat(formData.valor) || 0,
+    frete: parseFloat(formData.frete) || 0,
+    data: dataFormatada,
+    data_vencimento: vencimentoFormatado,
+    fornecedor: formData.fornecedor,
+    condicao: formData.condicao,
+    observacoes: formData.observacoes,
+    user_id: user.id,
+    loja_id: lojaId  // 🔥 CAMPO OBRIGATÓRIO
+  }
+
+  let error = null
+
+  if (isEditing && editingId) {
+    const { error: updateError } = await supabase
+      .from("pedidos")
+      .update(pedidoData)
+      .eq("id", editingId)
+    error = updateError
+  } else {
+    const { error: insertError } = await supabase
+      .from("pedidos")
+      .insert([pedidoData])
+    error = insertError
+  }
+
+  setLoading(false)
+
+  if (error) {
+    console.error("Erro detalhado:", error)
+    alert(`Erro ao ${isEditing ? "atualizar" : "salvar"} pedido: ${error.message}`)
+  } else {
+    alert(`✅ Pedido ${isEditing ? "atualizado" : "salvo"} com sucesso!`)
+    navigate("/pedidos")
+  }
+}
 
   const displayValor = () => {
     if (!formData.valor) return ""

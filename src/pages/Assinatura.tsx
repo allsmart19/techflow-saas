@@ -67,6 +67,19 @@ export default function Assinatura() {
     })
   }, [])
 
+  // 🔥 REVALIDAÇÃO AUTOMÁTICA DA ASSINATURA (IMPORTANTE)
+useEffect(() => {
+  const interval = setInterval(() => {
+    const user = sessionStorage.getItem("user")
+    if (!user) return
+
+    const u = JSON.parse(user)
+    carregarAssinatura(u.id)
+  }, 5000)
+
+  return () => clearInterval(interval)
+}, [])
+
   async function carregarAssinatura(userId: string) {
     try {
       const { data, error } = await supabase

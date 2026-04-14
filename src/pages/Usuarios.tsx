@@ -1,6 +1,22 @@
 import { useState, useEffect } from "react"
 import { supabase } from "../lib/supabase"
-import { Users, Plus, Key, Shield, User, Loader2, AlertCircle, Edit2, Save, X, Power, PowerOff, CheckSquare, Square } from "lucide-react"
+import {
+  Users,
+  Plus,
+  Key,
+  Shield,
+  User,
+  Loader2,
+  AlertCircle,
+  Edit2,
+  Save,
+  X,
+  Power,
+  PowerOff,
+  CheckSquare,
+  Square,
+  Percent
+} from "lucide-react"
 
 interface Usuario {
   id: number
@@ -43,20 +59,20 @@ export default function Usuarios() {
   const [userRole, setUserRole] = useState<string>("")
   const [userLogado, setUserLogado] = useState<any>(null)
   const [mensagem, setMensagem] = useState<{ tipo: "success" | "error"; texto: string } | null>(null)
-  
+  const [lojaId, setLojaId] = useState<number | null>(null)
+
   const [novoUsername, setNovoUsername] = useState("")
   const [novaSenha, setNovaSenha] = useState("")
   const [novaRole, setNovaRole] = useState<"user" | "admin_loja">("user")
+  const [novasPermissoes, setNovasPermissoes] = useState<Permissoes>({})
   const [saving, setSaving] = useState(false)
-  
+
   const [usuarioSelecionado, setUsuarioSelecionado] = useState<Usuario | null>(null)
   const [novaSenhaReset, setNovaSenhaReset] = useState("")
-  
-  // Estados para edição de comissão
+
   const [editandoComissaoId, setEditandoComissaoId] = useState<number | null>(null)
   const [editandoComissaoValor, setEditandoComissaoValor] = useState<string>("")
 
-  // Estado para edição de permissões
   const [editandoPermissoesId, setEditandoPermissoesId] = useState<number | null>(null)
   const [editandoPermissoes, setEditandoPermissoes] = useState<Permissoes>({})
 
@@ -65,116 +81,111 @@ export default function Usuarios() {
   }, [])
 
   useEffect(() => {
-    if (userLogado?.id) {
+    if (userLogado?.id && lojaId !== null) {
       carregarUsuarios()
     }
-  }, [userLogado])
+  }, [userLogado, lojaId])
 
   async function carregarUserRole() {
     const userStr = sessionStorage.getItem("user")
-    if (userStr) {
-      const user = JSON.parse(userStr)
-      setUserLogado(user)
-      const { data, error } = await supabase
-        .from("usuarios")
-        .select("role")
-        .eq("id", user.id)
-        .single()
-      
-      if (!error && data) {
-        setUserRole(data.role)
-      }
+    if (!userStr) return
+
+    const user = JSON.parse(userStr)
+    setUserLogado(user)
+
+    const { data } = await supabase
+      .from("usuarios")
+      .select("role, loja_id")
+      .eq("id", user.id)
+      .single()
+
+    if (data) {
+      setUserRole(data.role)
+      setLojaId(data.loja_id ?? null)
     }
   }
 
   async function carregarUsuarios() {
     setLoading(true)
-    
-    // Obter loja_id do usuário logado
-    const { data: userInfo, error: infoError } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", userLogado?.id)
-      .single()
-    
-    if (infoError) {
-      console.error("Erro ao obter loja_id:", infoError)
+
+    if (!lojaId) {
+      console.error("❌ Usuário sem loja_id → bloqueando query")
+      setUsuarios([])
       setLoading(false)
       return
     }
-    
-    const lojaId = userInfo?.loja_id || 1
-    
+
     const { data, error } = await supabase
       .from("usuarios")
       .select("id, username, email, role, comissao_percentual, ativo, permissoes")
       .eq("loja_id", lojaId)
       .order("id")
-    
+
     if (error) {
       console.error("Erro ao carregar usuários:", error)
+      setUsuarios([])
     } else {
       setUsuarios(data || [])
     }
+
     setLoading(false)
   }
 
-  async function cadastrarUsuario(e: React.FormEvent) {
-    e.preventDefault()
-    
-    if (userRole !== "admin_loja" && userRole !== "master") {
-      setMensagem({ tipo: "error", texto: "Apenas administradores podem cadastrar novos usuários!" })
-      setTimeout(() => setMensagem(null), 3000)
-      return
-    }
-    
-    if (!novoUsername.trim() || !novaSenha.trim()) {
-      setMensagem({ tipo: "error", texto: "Preencha todos os campos!" })
-      setTimeout(() => setMensagem(null), 3000)
-      return
-    }
-    
-    setSaving(true)
-    
-    // Obter dados do admin logado
+async function cadastrarUsuario(e: React.FormEvent) {
+  e.preventDefault()
+
+  if (!isAdmin) {
+    setMensagem({ tipo: "error", texto: "Apenas administradores podem cadastrar novos usuários!" })
+    setTimeout(() => setMensagem(null), 3000)
+    return
+  }
+
+  if (!novoUsername.trim() || !novaSenha.trim()) {
+    setMensagem({ tipo: "error", texto: "Preencha todos os campos!" })
+    setTimeout(() => setMensagem(null), 3000)
+    return
+  }
+
+  setSaving(true)
+
+  try {
+    // Obter a loja_id do usuário logado (admin)
     const { data: adminData, error: adminError } = await supabase
       .from("usuarios")
-      .select("email, loja_id, username")
+      .select("loja_id")
       .eq("id", userLogado?.id)
       .single()
-    
-    // Gerar email para o técnico (usar email fixo para garantir formato válido)
+
+    if (adminError || !adminData?.loja_id) {
+      setMensagem({ tipo: "error", texto: "Administrador não possui loja vinculada!" })
+      setSaving(false)
+      setTimeout(() => setMensagem(null), 3000)
+      return
+    }
+
+    const lojaId = adminData.loja_id
     const tecnicoEmail = `${novoUsername.toLowerCase()}@tecnicotech.com`
-    
-    // 1. Criar usuário no Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+
+    // Criar usuário no Supabase Auth
+    const { error: authError } = await supabase.auth.signUp({
       email: tecnicoEmail,
       password: novaSenha,
       options: {
         data: { username: novoUsername.toLowerCase() }
       }
     })
-    
+
     if (authError) {
-      setMensagem({ tipo: "error", texto: `Erro no Auth: ${authError.message}` })
+      setMensagem({ tipo: "error", texto: authError.message })
       setSaving(false)
       setTimeout(() => setMensagem(null), 3000)
       return
     }
-    
-    // 2. Inserir na tabela usuarios
-    const novoUsuarioData: any = {
-      username: novoUsername.toLowerCase(),
-      email: tecnicoEmail,
-      role: novaRole,
-      comissao_percentual: 10.00,
-      ativo: true,
-      loja_id: adminData?.loja_id || 1
-    }
-    
-    // Se for técnico (user), adicionar permissões padrão
+
+    // Preparar permissões padrão para técnico
+    let permissoes = null
     if (novaRole === "user") {
-      novoUsuarioData.permissoes = {
+      permissoes = {
         dashboard: true,
         pedidos: true,
         consertos: true,
@@ -186,76 +197,100 @@ export default function Usuarios() {
         ajustes: false
       }
     }
-    
-    const { error: insertError } = await supabase
-      .from("usuarios")
-      .insert([novoUsuarioData])
-    
-    setSaving(false)
-    
+
+    // Inserir na tabela usuarios com a loja_id correta
+    const { error: insertError } = await supabase.from("usuarios").insert({
+      username: novoUsername.toLowerCase(),
+      email: tecnicoEmail,
+      role: novaRole,
+      comissao_percentual: 10,
+      ativo: true,
+      loja_id: lojaId,
+      permissoes: permissoes
+    })
+
     if (insertError) {
-      if (insertError.code === "23505") {
-        setMensagem({ tipo: "error", texto: "Nome de usuário já existe!" })
-      } else {
-        setMensagem({ tipo: "error", texto: `Erro ao cadastrar usuário: ${insertError.message}` })
-      }
+      setMensagem({ tipo: "error", texto: insertError.message })
     } else {
-      setMensagem({ tipo: "success", texto: `Usuário ${novoUsername} cadastrado com sucesso! Email: ${tecnicoEmail}` })
+      setMensagem({ tipo: "success", texto: `Usuário ${novoUsername} cadastrado com sucesso!` })
       setNovoUsername("")
       setNovaSenha("")
       setNovaRole("user")
       carregarUsuarios()
     }
-    setTimeout(() => setMensagem(null), 3000)
+  } catch (error: any) {
+    setMensagem({ tipo: "error", texto: error.message || "Erro ao cadastrar usuário" })
   }
 
-  async function resetarSenha() {
-    if (!usuarioSelecionado) return
-    
-    if (userRole !== "admin_loja" && userRole !== "master") {
-      setMensagem({ tipo: "error", texto: "Apenas administradores podem resetar senhas!" })
-      setTimeout(() => setMensagem(null), 3000)
-      return
-    }
-    
-    if (!novaSenhaReset.trim()) {
-      setMensagem({ tipo: "error", texto: "Digite a nova senha!" })
-      setTimeout(() => setMensagem(null), 3000)
-      return
-    }
-    
-    setSaving(true)
-    
+  setSaving(false)
+  setTimeout(() => setMensagem(null), 3000)
+}
+
+async function resetarSenha() {
+  if (!usuarioSelecionado) return
+
+  if (!isAdmin) {
+    setMensagem({ tipo: "error", texto: "Apenas administradores podem resetar senhas!" })
+    setTimeout(() => setMensagem(null), 3000)
+    return
+  }
+
+  if (!novaSenhaReset.trim()) {
+    setMensagem({ tipo: "error", texto: "Digite a nova senha!" })
+    setTimeout(() => setMensagem(null), 3000)
+    return
+  }
+
+  if (novaSenhaReset.length < 6) {
+    setMensagem({ tipo: "error", texto: "A senha deve ter pelo menos 6 caracteres!" })
+    setTimeout(() => setMensagem(null), 3000)
+    return
+  }
+
+  setSaving(true)
+
+  try {
     // Buscar o email do usuário
-    const { data: userData } = await supabase
+    const { data: userData, error: userError } = await supabase
       .from("usuarios")
       .select("email")
       .eq("id", usuarioSelecionado.id)
       .single()
-    
-    if (!userData?.email) {
+
+    if (userError || !userData?.email) {
       setMensagem({ tipo: "error", texto: "Usuário não possui email cadastrado!" })
       setSaving(false)
       setTimeout(() => setMensagem(null), 3000)
       return
     }
-    
-    // Atualizar senha no Supabase Auth
-    const { error: updateError } = await supabase.auth.admin.updateUserById(
-      usuarioSelecionado.id.toString(),
-      { password: novaSenhaReset }
+
+    // Enviar email de redefinição de senha
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+      userData.email,
+      {
+        redirectTo: `${window.location.origin}/reset-password`,
+      }
     )
-    
-    if (updateError) {
-      setMensagem({ tipo: "error", texto: "Erro ao resetar senha no Auth!" })
+
+    if (resetError) {
+      console.error("Erro ao resetar senha:", resetError)
+      setMensagem({ tipo: "error", texto: "Erro ao enviar email de redefinição de senha!" })
     } else {
-      setMensagem({ tipo: "success", texto: `Senha de ${usuarioSelecionado.username} resetada com sucesso!` })
+      setMensagem({ 
+        tipo: "success", 
+        texto: `Email de redefinição de senha enviado para ${userData.email}. O usuário receberá um link para criar uma nova senha.` 
+      })
       setUsuarioSelecionado(null)
       setNovaSenhaReset("")
     }
-    setSaving(false)
-    setTimeout(() => setMensagem(null), 3000)
+  } catch (error) {
+    console.error("Erro inesperado:", error)
+    setMensagem({ tipo: "error", texto: "Erro ao resetar senha!" })
   }
+
+  setSaving(false)
+  setTimeout(() => setMensagem(null), 5000)
+}
 
   async function toggleUsuarioAtivo(id: number, username: string, ativoAtual: boolean) {
     if (username === userLogado?.username) {
@@ -263,25 +298,25 @@ export default function Usuarios() {
       setTimeout(() => setMensagem(null), 3000)
       return
     }
-    
-    const acao = ativoAtual ? "desativar" : "ativar"
+
     const acaoTexto = ativoAtual ? "desativado" : "ativado"
-    
-    if (confirm(`Tem certeza que deseja ${acao} o usuário "${username}"?`)) {
+
+    if (confirm(`Tem certeza que deseja ${ativoAtual ? "desativar" : "ativar"} o usuário "${username}"?`)) {
       setLoading(true)
-      
+
       const { error } = await supabase
         .from("usuarios")
         .update({ ativo: !ativoAtual })
         .eq("id", id)
-      
+        .eq("loja_id", lojaId)
+
       if (error) {
-        setMensagem({ tipo: "error", texto: `Erro ao ${acao} usuário!` })
+        setMensagem({ tipo: "error", texto: `Erro ao ${ativoAtual ? "desativar" : "ativar"} usuário!` })
       } else {
         setMensagem({ tipo: "success", texto: `Usuário "${username}" ${acaoTexto} com sucesso!` })
         carregarUsuarios()
       }
-      
+
       setLoading(false)
       setTimeout(() => setMensagem(null), 3000)
     }
@@ -294,13 +329,13 @@ export default function Usuarios() {
       setTimeout(() => setMensagem(null), 3000)
       return
     }
-    
+
     setSaving(true)
     const { error } = await supabase
       .from("usuarios")
       .update({ comissao_percentual: comissao })
       .eq("id", id)
-    
+
     if (error) {
       setMensagem({ tipo: "error", texto: "Erro ao salvar comissão!" })
     } else {
@@ -328,7 +363,7 @@ export default function Usuarios() {
       .from("usuarios")
       .update({ permissoes: editandoPermissoes })
       .eq("id", id)
-    
+
     if (error) {
       setMensagem({ tipo: "error", texto: "Erro ao salvar permissões!" })
     } else {
@@ -520,8 +555,8 @@ export default function Usuarios() {
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 dark:bg-gray-900">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                 <tr>
                   <th className="text-left p-3 text-xs font-medium text-gray-500 dark:text-gray-400">ID</th>
                   <th className="text-left p-3 text-xs font-medium text-gray-500 dark:text-gray-400">Usuário</th>
@@ -690,8 +725,7 @@ export default function Usuarios() {
               • Usuários <strong>inativos</strong> não podem fazer login, mas seus dados permanecem no sistema.<br />
               • A comissão padrão para novos técnicos é <strong>10%</strong>.<br />
               • Para <strong>reativar</strong> um usuário inativo, clique no botão verde ao lado do nome.<br />
-              • Técnicos podem ter permissões <strong>granulares</strong> (quais telas podem acessar).<br />
-              • O email do técnico é gerado automaticamente como: <strong>usuario@tecnicotech.com</strong>
+              • Técnicos podem ter permissões <strong>granulares</strong> (quais telas podem acessar).
             </p>
           </div>
         )}

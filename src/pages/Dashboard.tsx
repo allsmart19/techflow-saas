@@ -107,49 +107,71 @@ export default function Dashboard() {
   }
 
   async function carregarDados() {
-    setLoading(true)
-    //const { data, error } = await supabase.from("pedidos").select("*")
-    // Obter usuário logado
-const userStr = sessionStorage.getItem("user")
-const user = userStr ? JSON.parse(userStr) : null
-if (!user) return
+    const userStr = sessionStorage.getItem("user")
+    const user = userStr ? JSON.parse(userStr) : null
+    if (!user) return
 
-// Buscar apenas pedidos do usuário
-const { data, error } = await supabase
-  .from("pedidos")
-  .select("*")
-  .eq("user_id", user.id)
+    // Buscar loja_id do usuário
+    let lojaId = user.loja_id
+    
+    if (!lojaId) {
+      const { data } = await supabase
+        .from("usuarios")
+        .select("loja_id")
+        .eq("id", user.id)
+        .single()
+      lojaId = data?.loja_id
+    }
+
+    if (!lojaId) {
+      console.error("Usuário sem loja_id")
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
+    const { data, error } = await supabase
+      .from("pedidos")
+      .select("*")
+      .eq("loja_id", lojaId)
+      .order("data", { ascending: false })
 
     if (error) {
       console.error("Erro ao carregar dados:", error)
-    } else {
-      const pedidosData = data as Pedido[]
-      setPedidos(pedidosData)
-      
-      const anos = new Set<string>()
-      const meses = new Set<string>()
-      pedidosData.forEach(p => {
-        if (p.data) {
-          const ano = p.data.substring(6)
-          const mes = p.data.substring(3)
-          anos.add(ano)
-          meses.add(mes)
-        }
-      })
-      const anosLista = Array.from(anos).sort().reverse()
-      const mesesLista = Array.from(meses).sort().reverse()
-      setAnosDisponiveis(anosLista)
-      setMesesDisponiveis(mesesLista)
-      
-      const hoje = new Date()
-      const anoAtual = hoje.getFullYear().toString()
-      const mesAtual = `${(hoje.getMonth() + 1).toString().padStart(2, '0')}/${anoAtual}`
-      
-      setAnoSelecionado(anoAtual)
-      setMesSelecionado(mesesLista.includes(mesAtual) ? mesAtual : (mesesLista[0] || ""))
-      
-      filtrarDados(pedidosData, anoAtual, "mes", mesesLista.includes(mesAtual) ? mesAtual : (mesesLista[0] || ""))
+      setLoading(false)
+      return
     }
+
+    const pedidosData = data as Pedido[]
+    setPedidos(pedidosData)
+    
+    // Extrair anos e meses disponíveis
+    const anos = new Set<string>()
+    const meses = new Set<string>()
+    pedidosData.forEach(p => {
+      if (p.data) {
+        const ano = p.data.substring(6)
+        const mes = p.data.substring(3)
+        anos.add(ano)
+        meses.add(mes)
+      }
+    })
+    
+    const anosLista = Array.from(anos).sort().reverse()
+    const mesesLista = Array.from(meses).sort().reverse()
+    setAnosDisponiveis(anosLista)
+    setMesesDisponiveis(mesesLista)
+    
+    const hoje = new Date()
+    const anoAtual = hoje.getFullYear().toString()
+    const mesAtual = `${(hoje.getMonth() + 1).toString().padStart(2, '0')}/${anoAtual}`
+    
+    setAnoSelecionado(anoAtual)
+    setMesSelecionado(mesesLista.includes(mesAtual) ? mesAtual : (mesesLista[0] || ""))
+    
+    // Filtrar dados iniciais
+    filtrarDados(pedidosData, anoAtual, "mes", mesesLista.includes(mesAtual) ? mesAtual : (mesesLista[0] || ""))
+    
     setLoading(false)
   }
 
@@ -220,10 +242,14 @@ const { data, error } = await supabase
           garantia.valor += valor
           break
         case "DEVOLUÇÃO":
+        case "DEVOLUCAO":
           devolucao.qtd++
           devolucao.valor += valor
           break
         case "DEVOLUÇÃO PAGA":
+        case "DEVOLUÇÃO_PAGA":
+        case "DEVOLUCAO PAGA":
+        case "DEVOLUCAO_PAGA":
           devolucaoPaga.qtd++
           devolucaoPaga.valor += valor
           break
@@ -238,7 +264,8 @@ const { data, error } = await supabase
       }
     })
     
-    const totalGeral = conserto.valor + garantia.valor + loja.valor
+    // 🔥 FATURAMENTO = SOMA DE TUDO EXCETO DEVOLUÇÃO E DEVOLUÇÃO PAGA
+    const totalGeral = conserto.valor + garantia.valor + loja.valor + quebrada.valor + frete.valor
     const totalPedidos = dadosFiltrados.length
     const ticketMedio = totalPedidos > 0 ? totalGeral / totalPedidos : 0
     
@@ -365,9 +392,8 @@ const { data, error } = await supabase
         </div>
       </div>
 
-      {/* Cards de métricas - COM QUANTIDADE NO NOME */}
+      {/* Cards de métricas */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2 mb-5">
-        {/* CONSERTO */}
         <div className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-xl p-2 text-white shadow-sm">
           <div className="flex items-center justify-between mb-1">
             <Wrench className="w-3.5 h-3.5 opacity-80" />
@@ -376,7 +402,6 @@ const { data, error } = await supabase
           <p className="text-sm font-bold">{formatCurrency(stats.CONSERTO.valor)}</p>
         </div>
 
-        {/* GARANTIA */}
         <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-xl p-2 text-white shadow-sm">
           <div className="flex items-center justify-between mb-1">
             <CheckCircle className="w-3.5 h-3.5 opacity-80" />
@@ -385,7 +410,6 @@ const { data, error } = await supabase
           <p className="text-sm font-bold">{formatCurrency(stats.GARANTIA.valor)}</p>
         </div>
 
-        {/* DEVOLUÇÃO */}
         <div className="bg-gradient-to-br from-red-500 to-red-700 rounded-xl p-2 text-white shadow-sm">
           <div className="flex items-center justify-between mb-1">
             <AlertCircle className="w-3.5 h-3.5 opacity-80" />
@@ -394,7 +418,6 @@ const { data, error } = await supabase
           <p className="text-sm font-bold">{formatCurrency(stats.DEVOLUÇÃO.valor)}</p>
         </div>
 
-        {/* DEVOLUÇÃO PAGA */}
         <div className="bg-gradient-to-br from-amber-500 to-amber-700 rounded-xl p-2 text-white shadow-sm">
           <div className="flex items-center justify-between mb-1">
             <RefreshCw className="w-3.5 h-3.5 opacity-80" />
@@ -403,7 +426,6 @@ const { data, error } = await supabase
           <p className="text-sm font-bold">{formatCurrency(stats.DEVOLUÇÃO_PAGA.valor)}</p>
         </div>
 
-        {/* FRETE */}
         <div className="bg-gradient-to-br from-cyan-500 to-cyan-700 rounded-xl p-2 text-white shadow-sm">
           <div className="flex items-center justify-between mb-1">
             <Truck className="w-3.5 h-3.5 opacity-80" />
@@ -412,7 +434,6 @@ const { data, error } = await supabase
           <p className="text-sm font-bold">{formatCurrency(stats.FRETE.valor)}</p>
         </div>
 
-        {/* LOJA */}
         <div className="bg-gradient-to-br from-pink-500 to-pink-700 rounded-xl p-2 text-white shadow-sm">
           <div className="flex items-center justify-between mb-1">
             <Store className="w-3.5 h-3.5 opacity-80" />
@@ -421,7 +442,6 @@ const { data, error } = await supabase
           <p className="text-sm font-bold">{formatCurrency(stats.LOJA.valor)}</p>
         </div>
 
-        {/* QUEBRADA */}
         <div className="bg-gradient-to-br from-gray-500 to-gray-700 rounded-xl p-2 text-white shadow-sm">
           <div className="flex items-center justify-between mb-1">
             <Trash2 className="w-3.5 h-3.5 opacity-80" />

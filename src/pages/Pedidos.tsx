@@ -29,31 +29,34 @@ export default function Pedidos() {
     carregarPedidos()
   }, [])
 
-  async function carregarPedidos() {
-    const userStr = sessionStorage.getItem("user")
-    const user = userStr ? JSON.parse(userStr) : null
-    if (!user) return
+    async function carregarPedidos() {
+  const userStr = sessionStorage.getItem("user")
+  const user = userStr ? JSON.parse(userStr) : null
+  if (!user) return
+
+  // 🔥 IMPORTANTE: Buscar o loja_id do usuário
+  let lojaId = user.loja_id
   
-    // Obter loja_id do usuário logado
-    const { data: userInfo, error: userError } = await supabase
+  if (!lojaId) {
+    const { data } = await supabase
       .from("usuarios")
       .select("loja_id")
       .eq("id", user.id)
       .single()
-  
-    if (userError) {
-      console.error("Erro ao obter loja_id:", userError)
-      return
-    }
-  
-    const lojaId = userInfo?.loja_id || 1
-  
-    setLoading(true)
-    const { data, error } = await supabase
-      .from("pedidos")
-      .select("*")
-      .eq("loja_id", lojaId)  // 🔥 FILTRO POR LOJA (todos os pedidos da loja)
-      .order("data", { ascending: false })
+    lojaId = data?.loja_id
+  }
+
+  if (!lojaId) {
+    console.error("Usuário sem loja_id")
+    return
+  }
+
+  setLoading(true)
+  const { data, error } = await supabase
+    .from("pedidos")
+    .select("*")
+    .eq("loja_id", lojaId)  // 🔥 FILTRO OBRIGATÓRIO POR LOJA
+    .order("data", { ascending: false })
   
     if (error) {
       console.error("Erro ao carregar pedidos:", error)

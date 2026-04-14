@@ -2,23 +2,22 @@ import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../lib/supabase"
 import { getConfigLoja } from "../services/configService"
-import { signInWithEmail, signInWithGoogle, signUpWithEmail } from "../services/authService"
-import { Loader2, Eye, EyeOff, Mail, Lock, LogIn, User } from "lucide-react"
+import { signInWithGoogle, signUpWithEmail } from "../services/authService"
 
-// Função para gerar hash SHA-256 (mantida para compatibilidade com usuários existentes)
+// Hash legado SHA-256
 async function gerarHashSimples(senha: string): Promise<string> {
   const encoder = new TextEncoder()
   const data = encoder.encode(senha)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data)
   const hashArray = Array.from(new Uint8Array(hashBuffer))
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
-  return hashHex
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("")
 }
 
 export default function Login() {
   const navigate = useNavigate()
+
   const [isLogin, setIsLogin] = useState(true)
-  const [identifier, setIdentifier] = useState("") // email ou nome de usuário
+  const [identifier, setIdentifier] = useState("")
   const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -26,6 +25,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [showPassword, setShowPassword] = useState(false)
+
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [nomeLoja, setNomeLoja] = useState("TechFlow")
 
@@ -41,86 +41,138 @@ export default function Login() {
     }
   }
 
-  // Login que funciona tanto para usuários legados (hash SHA-256) quanto para novos (Auth)
+  // =========================
+  // LOGIN (CONSULTA SIMPLES E DIRETA)
+  // =========================
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError("")
 
     try {
-      const isEmail = identifier.includes('@')
-      
-      let query = supabase
-        .from("usuarios")
-        .select("id, username, senha, role, ativo, email")
-      
-      if (isEmail) {
-        query = query.eq("email", identifier.toLowerCase())
-      } else {
-        query = query.eq("username", identifier.toLowerCase())
-      }
-      
-      const { data, error: fetchError } = await supabase
-  .from("usuarios")
-  .select("id, username, email, senha, role, ativo")
-  .or(`username.eq.${identifier.toLowerCase()},email.eq.${identifier.toLowerCase()}`)
-  .single()
+      const identifierLower = identifier.toLowerCase().trim()
+      console.log("🔍 Buscando usuário:", identifierLower)
 
-      if (fetchError || !data) {
-        setError("Usuário não encontrado!")
+      // 🔥 Consulta mais simples - tentar primeiro por username
+      let userData = null
+
+      // Tentar por username
+      const { data: byUsername, error: errUsername } = await supabase
+        .from("usuarios")
+        .select("*")
+        .eq("username", identifierLower)
+        .maybeSingle()
+
+      console.log("🔍 Busca por username:", byUsername)
+      console.log("❌ Erro username:", errUsername)
+
+      if (byUsername) {
+        userData = byUsername
+      } else {
+        // Tentar por email
+        const { data: byEmail, error: errEmail } = await supabase
+          .from("usuarios")
+          .select("*")
+          .eq("email", identifierLower)
+          .maybeSingle()
+        
+        console.log("🔍 Busca por email:", byEmail)
+        console.log("❌ Erro email:", errEmail)
+
+        if (byEmail) {
+          userData = byEmail
+        }
+      }
+
+      console.log("📦 Dados finais:", userData)
+
+      if (!userData) {
+        setError("Usuário não encontrado! Verifique se o cadastro foi concluído.")
         setLoading(false)
         return
       }
-      
-      if (data.ativo === false) {
+
+      // Verificação do campo ativo
+      const isAtivo = userData.ativo === true || 
+                      userData.ativo === "true" || 
+                      userData.ativo === 1 ||
+                      userData.ativo === "1"
+
+      console.log("✅ Ativo:", isAtivo, "Valor bruto:", userData.ativo)
+
+      if (!isAtivo) {
         setError("Usuário desativado! Contate o administrador.")
         setLoading(false)
         return
       }
-      
-      // Verificar se o usuário é novo (senha NULL) ou legado (senha com hash)
-      if (!data.senha) {
-        // Novo usuário: autenticar via Supabase Auth
+
+      // Verificar loja_id
+      if (!userData.loja_id) {
+        setError("Conta sem loja vinculada. Contate o suporte.")
+        setLoading(false)
+        return
+      }
+
+      // =========================
+      // LOGIN SUPABASE AUTH (para usuários sem senha hash)
+      // =========================
+      if (!userData.senha) {
+        console.log("🔐 Tentando login via Supabase Auth")
         const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: data.email,
-          password: password,
+          email: userData.email,
+          password
         })
-        
+
         if (signInError) {
+          console.error("❌ Erro no Auth:", signInError)
           setError("Senha incorreta!")
           setLoading(false)
           return
         }
-        
-        // Login bem-sucedido via Auth
+
         sessionStorage.setItem("user", JSON.stringify({
-          id: data.id,
-          username: data.username,
-          role: data.role
+          id: userData.id,
+          username: userData.username,
+          role: userData.role,
+          loja_id: userData.loja_id
         }))
+
         navigate("/dashboard")
-      } else {
-        // Usuário legado: comparar hash SHA-256
-        const hashDigitado = await gerarHashSimples(password)
-        if (hashDigitado === data.senha) {
-          sessionStorage.setItem("user", JSON.stringify({
-            id: data.id,
-            username: data.username,
-            role: data.role
-          }))
-          navigate("/dashboard")
-        } else {
-          setError("Senha incorreta!")
-        }
+        return
       }
+
+      // =========================
+      // LOGIN LEGADO (SHA256)
+      // =========================
+      console.log("🔐 Verificando hash SHA256")
+      const hashDigitado = await gerarHashSimples(password)
+
+      if (hashDigitado !== userData.senha) {
+        setError("Senha incorreta!")
+        setLoading(false)
+        return
+      }
+
+      sessionStorage.setItem("user", JSON.stringify({
+        id: userData.id,
+        username: userData.username,
+        role: userData.role,
+        loja_id: userData.loja_id
+      }))
+
+      navigate("/dashboard")
+
     } catch (err) {
-      console.error('Erro no login:', err)
-      setError("Erro ao fazer login. Tente novamente.")
+      console.error("❌ Erro inesperado:", err)
+      setError("Erro interno ao fazer login")
     }
-    
+
     setLoading(false)
   }
 
+  // =========================
+  // CADASTRO
+  // =========================
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -141,7 +193,7 @@ export default function Login() {
     const result = await signUpWithEmail(email, password, username)
 
     if (result.success) {
-      alert("Cadastro realizado com sucesso! Faça login para continuar.")
+      alert("Cadastro realizado! Faça login para continuar.")
       setIsLogin(true)
       setEmail("")
       setUsername("")
@@ -149,60 +201,110 @@ export default function Login() {
       setConfirmPassword("")
       setIdentifier("")
     } else {
-      setError(result.error || "Erro ao cadastrar usuário")
+      setError(result.error || "Erro ao cadastrar")
     }
+
     setLoading(false)
   }
 
-  const handleGoogleLogin = async () => {
-    setLoading(true)
-    const result = await signInWithGoogle()
-    if (result.success && result.url) {
-      window.location.href = result.url
-    } else {
-      setError(result.error || "Erro ao fazer login com Google")
+// GOOGLE LOGIN (CORRIGIDO)
+const handleGoogleLogin = async () => {
+  setLoading(true)
+  setError("")
+
+  try {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        }
+      }
+    })
+
+    if (error) {
+      console.error("❌ Erro Google:", error)
+      setError("Erro ao entrar com Google: " + error.message)
       setLoading(false)
+      return
     }
+
+    if (data?.url) {
+      window.location.href = data.url
+    } else {
+      throw new Error("URL não retornada")
+    }
+  } catch (err: any) {
+    console.error("❌ Erro Google:", err)
+    setError(err.message || "Erro ao entrar com Google")
+    setLoading(false)
+  }
+}
+
+  // =========================
+  // ESQUECI SENHA
+  // =========================
+  const handleForgotPassword = async () => {
+    const emailInput = identifier.includes("@") ? identifier : email
+
+    if (!emailInput || !emailInput.includes("@")) {
+      setError("Digite um e-mail válido para recuperar senha")
+      return
+    }
+
+    setLoading(true)
+    setError("")
+
+    const { error } = await supabase.auth.resetPasswordForEmail(emailInput, {
+      redirectTo: `${window.location.origin}/reset-password`
+    })
+
+    if (error) {
+      console.error("❌ Erro ao enviar e-mail:", error)
+      setError("Erro ao enviar e-mail de recuperação")
+    } else {
+      alert("E-mail de recuperação enviado! Verifique sua caixa de entrada.")
+    }
+
+    setLoading(false)
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-300 dark:from-gray-800 dark:to-gray-900">
-      <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm rounded-2xl shadow-2xl w-full max-w-md mx-4 p-8">
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            {logoUrl ? (
-              <img 
-                src={logoUrl} 
-                alt={nomeLoja} 
-                className="w-20 h-20 object-contain rounded-2xl"
-              />
-            ) : (
-              <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-2xl flex items-center justify-center shadow-lg">
-                <span className="text-3xl text-white">🔧</span>
-              </div>
-            )}
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">{nomeLoja}</h1>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Gestão de Pedidos e Consertos</p>
+      <div className="bg-white dark:bg-gray-800 w-full max-w-md p-8 rounded-2xl shadow-xl">
+        <div className="text-center mb-6">
+          {logoUrl ? (
+            <img src={logoUrl} className="w-20 h-20 mx-auto object-contain" alt="Logo" />
+          ) : (
+            <div className="text-4xl">🔧</div>
+          )}
+          <h1 className="font-bold text-2xl mt-2 text-gray-900 dark:text-white">{nomeLoja}</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Gestão de Pedidos e Consertos</p>
         </div>
 
-        <div className="flex gap-2 mb-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex mb-6 border-b border-gray-200 dark:border-gray-700">
           <button
             onClick={() => setIsLogin(true)}
-            className={`flex-1 pb-2 text-sm font-medium transition-colors ${isLogin ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`flex-1 pb-2 text-sm font-medium transition-colors ${
+              isLogin ? "text-purple-600 border-b-2 border-purple-600" : "text-gray-500 hover:text-gray-700"
+            }`}
           >
             Entrar
           </button>
           <button
             onClick={() => setIsLogin(false)}
-            className={`flex-1 pb-2 text-sm font-medium transition-colors ${!isLogin ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`flex-1 pb-2 text-sm font-medium transition-colors ${
+              !isLogin ? "text-purple-600 border-b-2 border-purple-600" : "text-gray-500 hover:text-gray-700"
+            }`}
           >
             Criar Conta
           </button>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg text-sm text-center">
+          <div className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 p-3 rounded-lg text-sm text-center mb-4">
             {error}
           </div>
         )}
@@ -211,19 +313,17 @@ export default function Login() {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Usuário ou E-mail
+                Usuário
               </label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-                  placeholder="Digite seu usuário ou e-mail"
-                  required
-                />
-              </div>
+              <input
+                type="text"
+                placeholder="Digite seu nome de usuário"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                required
+              />
+              <p className="text-xs text-gray-400 mt-1">Digite apenas o nome de usuário (não o e-mail)</p>
             </div>
 
             <div>
@@ -231,13 +331,12 @@ export default function Login() {
                 Senha
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type={showPassword ? "text" : "password"}
+                  placeholder="Digite sua senha"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-                  placeholder="Digite sua senha"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white pr-10"
                   required
                 />
                 <button
@@ -245,17 +344,24 @@ export default function Login() {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? "👁️" : "👁️‍🗨️"}
                 </button>
               </div>
             </div>
 
             <button
+              type="button"
+              onClick={handleForgotPassword}
+              className="text-sm text-purple-600 hover:text-purple-700"
+            >
+              Esqueci minha senha
+            </button>
+
+            <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-2 rounded-lg font-semibold hover:shadow-lg transition disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-2 rounded-lg font-semibold hover:shadow-lg transition disabled:opacity-50"
             >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
               {loading ? "Entrando..." : "Entrar"}
             </button>
           </form>
@@ -263,50 +369,43 @@ export default function Login() {
           <form onSubmit={handleRegister} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Nome de Usuário *
+                Nome de Usuário
               </label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-                  placeholder="Como você será conhecido"
-                  required
-                />
-              </div>
+              <input
+                type="text"
+                placeholder="Como você será conhecido"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                required
+              />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                E-mail *
+                E-mail
               </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-                  placeholder="seu@email.com"
-                  required
-                />
-              </div>
+              <input
+                type="email"
+                placeholder="seu@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                required
+              />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Senha *
+                Senha
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type={showPassword ? "text" : "password"}
+                  placeholder="Mínimo 6 caracteres"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-                  placeholder="Mínimo 6 caracteres"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white pr-10"
                   required
                 />
                 <button
@@ -314,34 +413,30 @@ export default function Login() {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? "👁️" : "👁️‍🗨️"}
                 </button>
               </div>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Confirmar Senha *
+                Confirmar Senha
               </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-                  placeholder="Digite a senha novamente"
-                  required
-                />
-              </div>
+              <input
+                type="password"
+                placeholder="Digite a senha novamente"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                required
+              />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-2 rounded-lg font-semibold hover:shadow-lg transition disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-2 rounded-lg font-semibold hover:shadow-lg transition disabled:opacity-50"
             >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
               {loading ? "Cadastrando..." : "Criar Conta"}
             </button>
           </form>
@@ -352,7 +447,7 @@ export default function Login() {
             <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white/95 dark:bg-gray-800/95 text-gray-500">ou</span>
+            <span className="px-2 bg-white dark:bg-gray-800 text-gray-500">ou</span>
           </div>
         </div>
 

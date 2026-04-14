@@ -133,42 +133,52 @@ export default function Consertos() {
     return data.comissao_percentual
   }
 
-  async function carregarConsertos() {
-    setLoading(true)
+    async function carregarConsertos() {
+  const userStr = sessionStorage.getItem("user")
+  const user = userStr ? JSON.parse(userStr) : null
+  if (!user) return
+
+  // Buscar loja_id
+  let lojaId = user.loja_id
+  if (!lojaId) {
+    const { data } = await supabase
+      .from("usuarios")
+      .select("loja_id")
+      .eq("id", user.id)
+      .single()
+    lojaId = data?.loja_id
+  }
+
+  if (!lojaId) {
+    console.error("Usuário sem loja_id")
+    return
+  }
+
+  setLoading(true)
+  
+  let query = supabase.from("consertos").select("*")
+  
+  // 🔥 FILTRO OBRIGATÓRIO POR LOJA
+  if (user.role === 'admin_loja' || user.role === 'master') {
+    // Buscar todos os técnicos da loja
+    const { data: tecnicos } = await supabase
+      .from("usuarios")
+      .select("id")
+      .eq("loja_id", lojaId)
+      .eq("role", "user")
     
-    let query = supabase.from("consertos").select("*")
+    const tecnicoIds = tecnicos?.map(t => t.id) || []
     
-    // Se for admin_loja ou master, mostra consertos da loja
-    if (userLogado?.role === 'admin_loja' || userLogado?.role === 'master') {
-      // Obter loja_id do admin
-      const { data: adminInfo } = await supabase
-        .from("usuarios")
-        .select("loja_id")
-        .eq("id", userLogado?.id)
-        .single()
-      
-      const lojaId = adminInfo?.loja_id || 1
-      
-      // Buscar todos os técnicos da loja
-      const { data: tecnicos } = await supabase
-        .from("usuarios")
-        .select("id")
-        .eq("loja_id", lojaId)
-        .eq("role", "user")
-      
-      const tecnicoIds = tecnicos?.map(t => t.id) || []
-      
-      if (usuarioSelecionado && usuarioSelecionado !== "") {
-        // Filtro por técnico específico
-        query = query.eq("tecnico_id", parseInt(usuarioSelecionado))
-      } else if (tecnicoIds.length > 0) {
-        // Mostra consertos de todos os técnicos da loja
-        query = query.in("tecnico_id", tecnicoIds)
-      }
+    if (usuarioSelecionado && usuarioSelecionado !== "") {
+      query = query.eq("tecnico_id", parseInt(usuarioSelecionado))
+    } else if (tecnicoIds.length > 0) {
+      query = query.in("tecnico_id", tecnicoIds)
     } else {
-      // Usuário comum (técnico): mostra apenas seus próprios consertos
-      query = query.eq("user_id", userLogado?.id)
+      query = query.eq("tecnico_id", -1) // Nenhum técnico
     }
+  } else {
+    query = query.eq("user_id", user.id)
+  }
     
     const { data, error } = await query.order("data", { ascending: false })
     

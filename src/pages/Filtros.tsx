@@ -90,33 +90,51 @@ export default function Filtros() {
   }
 
   async function carregarPedidos() {
-    const userStr = sessionStorage.getItem("user")
-    const user = userStr ? JSON.parse(userStr) : null
-    if (!user) return
+  const userStr = sessionStorage.getItem("user")
+  const user = userStr ? JSON.parse(userStr) : null
+  if (!user) return
 
-    setLoading(true)
-    const { data, error } = await supabase
-      .from("pedidos")
-      .select("*")
-      .eq("user_id", user.id)
-
-    if (error) {
-      console.error("Erro ao carregar pedidos:", error)
-    } else {
-      setPedidos(data || [])
-      
-      // Extrair meses únicos dos pedidos do usuário
-      const meses = new Set<string>()
-      data?.forEach((pedido: Pedido) => {
-        if (pedido.data) {
-          const mes = pedido.data.substring(3)
-          meses.add(mes)
-        }
-      })
-      setMesesDisponiveis(Array.from(meses).sort().reverse())
-    }
-    setLoading(false)
+  // Buscar loja_id do usuário
+  let lojaId = user.loja_id
+  
+  if (!lojaId) {
+    const { data } = await supabase
+      .from("usuarios")
+      .select("loja_id")
+      .eq("id", user.id)
+      .single()
+    lojaId = data?.loja_id
   }
+
+  if (!lojaId) {
+    console.error("Usuário sem loja_id")
+    setLoading(false)
+    return
+  }
+
+  setLoading(true)
+  const { data, error } = await supabase
+    .from("pedidos")
+    .select("*")
+    .eq("loja_id", lojaId)  // 🔥 FILTRO OBRIGATÓRIO POR LOJA
+
+  if (error) {
+    console.error("Erro ao carregar pedidos:", error)
+  } else {
+    setPedidos(data || [])
+    
+    // Extrair meses únicos
+    const meses = new Set<string>()
+    data?.forEach((pedido: Pedido) => {
+      if (pedido.data) {
+        const mes = pedido.data.substring(3)
+        meses.add(mes)
+      }
+    })
+    setMesesDisponiveis(Array.from(meses).sort().reverse())
+  }
+  setLoading(false)
+}
 
   async function carregarListasSupabase() {
     const userStr = sessionStorage.getItem("user")
