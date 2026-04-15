@@ -99,10 +99,13 @@ export async function signInWithEmail(email: string, password: string) {
 
 export async function signInWithGoogle() {
   try {
+    //const redirectUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+    const redirectUrl = 'https://techflow-saas-livid.vercel.app';
+    
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`
+        redirectTo: `${redirectUrl}/dashboard`
       }
     });
 

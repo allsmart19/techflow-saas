@@ -52,28 +52,28 @@ export default function Layout() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const isRunningRef = useRef(false)
 
-  // src/components/Layout.tsx - parte do useEffect inicial
-useEffect(() => {
-  const userStr = sessionStorage.getItem("user")
-  console.log("🔍 Layout - Verificando usuário:", userStr)
+  useEffect(() => {
+    const userStr = sessionStorage.getItem("user")
+    console.log("🔍 Layout - Verificando usuário:", userStr)
 
-  if (!userStr) {
-    console.log("❌ Layout - Usuário não encontrado, redirecionando para login")
-    navigate("/login")
-    return
-  }
+    if (!userStr) {
+      console.log("❌ Layout - Usuário não encontrado, redirecionando para login")
+      navigate("/login")
+      return
+    }
 
-  let user: any
-  try {
-    user = JSON.parse(userStr)
-    console.log("✅ Layout - Usuário logado:", user.username)
-  } catch {
-    sessionStorage.removeItem("user")
-    navigate("/login")
-    return
-  }
+    let user: any
+    try {
+      user = JSON.parse(userStr)
+      console.log("✅ Layout - Usuário logado:", user.username)
+      setUserRole(user.role || "user")
+    } catch {
+      sessionStorage.removeItem("user")
+      navigate("/login")
+      return
+    }
 
-  init(user)
+    init(user)
 
     intervalRef.current = setInterval(() => {
       const freshUserStr = sessionStorage.getItem("user")
@@ -184,7 +184,7 @@ useEffect(() => {
             Acesso Bloqueado
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mb-4">
-            Seu período de uso gratuito expirou.
+            Seu período de teste gratuito expirou.
           </p>
           <p className="text-sm text-gray-500 dark:text-gray-500 mb-6">
             Assine um plano para continuar usando o sistema.

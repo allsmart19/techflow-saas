@@ -31,7 +31,7 @@ export default function AuthCallback() {
 
         console.log("✅ Usuário autenticado:", user.email)
 
-        // 🔥 PRIMEIRO: Tentar buscar usuário existente pelo email
+        // Buscar ou criar usuário na tabela usuarios
         let { data: existingUser, error: fetchError } = await supabase
           .from('usuarios')
           .select('id, username, role, loja_id, email')
@@ -44,115 +44,60 @@ export default function AuthCallback() {
           return
         }
 
-        // 🔥 Se o usuário já existe, apenas atualizar o sessionStorage
-        if (existingUser) {
-          console.log("✅ Usuário existente encontrado:", existingUser)
+        let userData
+
+        if (!existingUser) {
+          console.log("📝 Criando novo usuário...")
+          const username = user.user_metadata?.full_name || user.email?.split('@')[0] || 'user'
           
-          sessionStorage.setItem('user', JSON.stringify({
+          const { data: lojaPadrao } = await supabase
+            .from('lojas')
+            .select('id')
+            .eq('id', 1)
+            .single()
+          
+          const { data: newUser, error: insertError } = await supabase
+            .from('usuarios')
+            .insert({
+              username: username.toLowerCase(),
+              email: user.email,
+              role: 'user',
+              ativo: true,
+              loja_id: lojaPadrao?.id || 1
+            })
+            .select()
+            .single()
+
+          if (insertError) {
+            console.error("❌ Erro ao criar usuário:", insertError)
+            navigate('/login', { replace: true })
+            return
+          }
+
+          userData = {
+            id: newUser.id,
+            username: newUser.username,
+            role: newUser.role,
+            loja_id: newUser.loja_id,
+            email: newUser.email
+          }
+        } else {
+          userData = {
             id: existingUser.id,
             username: existingUser.username,
             role: existingUser.role,
             loja_id: existingUser.loja_id,
             email: existingUser.email
-          }))
-          
-          // Redirecionar para o dashboard
-          setTimeout(() => {
-            window.location.href = '/dashboard'
-          }, 100)
-          return
-        }
-
-        // 🔥 Se não existe, tentar buscar por username para evitar duplicação
-        const username = user.user_metadata?.full_name || user.email?.split('@')[0] || 'user'
-        const usernameLower = username.toLowerCase()
-        
-        // Verificar se já existe um usuário com este username
-        let { data: userByUsername, error: usernameError } = await supabase
-          .from('usuarios')
-          .select('id, username, role, loja_id, email')
-          .eq('username', usernameLower)
-          .maybeSingle()
-
-        if (usernameError) {
-          console.error("❌ Erro ao buscar por username:", usernameError)
-        }
-
-        // Se existe um usuário com este username mas email diferente, criar username único
-        let finalUsername = usernameLower
-        let counter = 1
-        
-        while (userByUsername && userByUsername.email !== user.email) {
-          finalUsername = `${usernameLower}${counter}`
-          console.log(`🔄 Username ${usernameLower} já existe, tentando ${finalUsername}...`)
-          
-          const { data: checkUser } = await supabase
-            .from('usuarios')
-            .select('id')
-            .eq('username', finalUsername)
-            .maybeSingle()
-          
-          if (!checkUser) {
-            userByUsername = null
-          } else {
-            counter++
           }
         }
 
-        // Se já existe um usuário com este username E o mesmo email, usar ele
-        if (userByUsername && userByUsername.email === user.email) {
-          console.log("✅ Usuário já existe (encontrado por username):", userByUsername)
-          sessionStorage.setItem('user', JSON.stringify({
-            id: userByUsername.id,
-            username: userByUsername.username,
-            role: userByUsername.role,
-            loja_id: userByUsername.loja_id,
-            email: userByUsername.email
-          }))
-          setTimeout(() => {
-            window.location.href = '/dashboard'
-          }, 100)
-          return
-        }
-
-        // 🔥 Criar novo usuário (com username único)
-        console.log("📝 Criando novo usuário com username:", finalUsername)
+        // Salvar no sessionStorage
+        sessionStorage.setItem('user', JSON.stringify(userData))
         
-        const { data: lojaPadrao } = await supabase
-          .from('lojas')
-          .select('id')
-          .eq('id', 1)
-          .single()
-        
-        const { data: newUser, error: insertError } = await supabase
-          .from('usuarios')
-          .insert({
-            username: finalUsername,
-            email: user.email,
-            role: 'user',
-            ativo: true,
-            loja_id: lojaPadrao?.id || 1
-          })
-          .select()
-          .single()
-
-        if (insertError) {
-          console.error("❌ Erro ao criar usuário:", insertError)
-          navigate('/login', { replace: true })
-          return
-        }
-
-        console.log("✅ Usuário criado:", newUser)
-        
-        sessionStorage.setItem('user', JSON.stringify({
-          id: newUser.id,
-          username: newUser.username,
-          role: newUser.role,
-          loja_id: newUser.loja_id,
-          email: newUser.email
-        }))
-
+        // 🔥 FORÇAR UM PEQUENO ATRASO PARA GARANTIR QUE O SESSIONSTORAGE FOI ESCRITO
         setTimeout(() => {
+          console.log("🚀 Redirecionando para dashboard...", userData)
+          //navigate('/dashboard', { replace: true })
           window.location.href = '/dashboard'
         }, 100)
         
