@@ -190,41 +190,41 @@ export default function Assinatura() {
     }
   }
 
-  const handleGerenciarAssinatura = async () => {
-    const customerId = assinaturaAtiva?.stripe_customer_id
-
-    if (!customerId) {
-      alert("Nenhum customer ID encontrado.")
-      return
-    }
-
-    setProcessando(true)
-
-    try {
-      const response = await fetch('https://techflow-saas-livid.vercel.app/api/stripe/create-portal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro ao acessar portal')
-      }
-
-      if (data.url) {
-        window.location.href = data.url
-      } else {
-        throw new Error('URL não retornada')
-      }
-    } catch (error: any) {
-      console.error(error)
-      alert(error.message || "Erro ao acessar o portal")
-    } finally {
-      setProcessando(false)
-    }
+const handleGerenciarAssinatura = async () => {
+  const customerId = assinaturaAtiva?.stripe_customer_id;
+  
+  if (!customerId) {
+    alert("Nenhum customer ID encontrado.");
+    return;
   }
+
+  setProcessando(true);
+
+  try {
+    const response = await fetch('/api/create-portal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customerId })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Erro ao acessar portal');
+    }
+
+    if (data.url) {
+      window.location.href = data.url;
+    } else {
+      throw new Error('URL não retornada');
+    }
+  } catch (error: any) {
+    console.error(error);
+    alert(error.message || "Erro ao acessar o portal");
+  } finally {
+    setProcessando(false);
+  }
+};
 
   const formatarData = (data: string) =>
     data ? new Date(data).toLocaleDateString("pt-BR") : "N/A"
