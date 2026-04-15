@@ -226,70 +226,60 @@ async function cadastrarUsuario(e: React.FormEvent) {
   setTimeout(() => setMensagem(null), 3000)
 }
 
+// =========================
+// RESETAR SENHA (VIA API)
+// =========================
 async function resetarSenha() {
-  if (!usuarioSelecionado) return
+  if (!usuarioSelecionado) return;
 
   if (!isAdmin) {
-    setMensagem({ tipo: "error", texto: "Apenas administradores podem resetar senhas!" })
-    setTimeout(() => setMensagem(null), 3000)
-    return
+    setMensagem({ tipo: "error", texto: "Apenas administradores podem resetar senhas!" });
+    setTimeout(() => setMensagem(null), 3000);
+    return;
   }
 
   if (!novaSenhaReset.trim()) {
-    setMensagem({ tipo: "error", texto: "Digite a nova senha!" })
-    setTimeout(() => setMensagem(null), 3000)
-    return
+    setMensagem({ tipo: "error", texto: "Digite a nova senha!" });
+    setTimeout(() => setMensagem(null), 3000);
+    return;
   }
 
   if (novaSenhaReset.length < 6) {
-    setMensagem({ tipo: "error", texto: "A senha deve ter pelo menos 6 caracteres!" })
-    setTimeout(() => setMensagem(null), 3000)
-    return
+    setMensagem({ tipo: "error", texto: "A senha deve ter pelo menos 6 caracteres!" });
+    setTimeout(() => setMensagem(null), 3000);
+    return;
   }
 
-  setSaving(true)
+  setSaving(true);
 
   try {
-    // Buscar o email do usuário
-    const { data: userData, error: userError } = await supabase
-      .from("usuarios")
-      .select("email")
-      .eq("id", usuarioSelecionado.id)
-      .single()
-
-    if (userError || !userData?.email) {
-      setMensagem({ tipo: "error", texto: "Usuário não possui email cadastrado!" })
-      setSaving(false)
-      setTimeout(() => setMensagem(null), 3000)
-      return
-    }
-
-    // Enviar email de redefinição de senha
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-      userData.email,
-      {
-        redirectTo: `${window.location.origin}/reset-password`,
-      }
-    )
-
-    if (resetError) {
-      console.error("Erro ao resetar senha:", resetError)
-      setMensagem({ tipo: "error", texto: "Erro ao enviar email de redefinição de senha!" })
-    } else {
-      setMensagem({ 
-        tipo: "success", 
-        texto: `Email de redefinição de senha enviado para ${userData.email}. O usuário receberá um link para criar uma nova senha.` 
+    const response = await fetch('/api/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: usuarioSelecionado.id,
+        newPassword: novaSenhaReset
       })
-      setUsuarioSelecionado(null)
-      setNovaSenhaReset("")
-    }
-  } catch (error) {
-    console.error("Erro inesperado:", error)
-    setMensagem({ tipo: "error", texto: "Erro ao resetar senha!" })
-  }
+    });
 
-  setSaving(false)
-  setTimeout(() => setMensagem(null), 5000)
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Erro ao resetar senha');
+    }
+
+    setMensagem({ tipo: "success", texto: `Senha de ${usuarioSelecionado.username} alterada com sucesso!` });
+    setUsuarioSelecionado(null);
+    setNovaSenhaReset("");
+    carregarUsuarios(); // recarregar lista (opcional)
+ } catch (error) {
+  console.error(error);
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  setMensagem({ tipo: "error", texto: errorMessage || "Erro ao resetar senha" });
+}
+
+  setSaving(false);
+  setTimeout(() => setMensagem(null), 3000);
 }
 
   async function toggleUsuarioAtivo(id: number, username: string, ativoAtual: boolean) {
