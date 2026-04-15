@@ -19,9 +19,7 @@ export default async function handler(req, res) {
   let event;
   try {
     event = await stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
-    console.log('✅ Evento recebido:', event.type);
   } catch (err) {
-    console.error('❌ Erro:', err.message);
     return res.status(400).json({ error: `Webhook Error: ${err.message}` });
   }
 
@@ -32,31 +30,18 @@ export default async function handler(req, res) {
       const subscriptionId = session.subscription;
       const customerId = session.customer;
 
-      console.log('💰 Checkout completed:', { userId, subscriptionId, customerId });
-
       if (subscriptionId && userId) {
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-        const planName = subscription.items.data[0]?.price?.nickname || 'Pro';
-        const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
-        const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000) : null;
-
-        const { error } = await supabase.from('assinaturas').upsert({
+        await supabase.from('assinaturas').upsert({
           user_id: userId,
           stripe_subscription_id: subscriptionId,
           stripe_customer_id: customerId,
           status: subscription.status,
-          plano: planName,
+          plano: subscription.items.data[0]?.price?.nickname || 'Pro',
           data_inicio: new Date(),
-          data_expiracao: currentPeriodEnd,
-          trial_end: trialEnd,
-          cancel_at_period_end: subscription.cancel_at_period_end,
+          data_expiracao: new Date(subscription.current_period_end * 1000),
+          trial_end: subscription.trial_end ? new Date(subscription.trial_end * 1000) : null,
         }, { onConflict: 'stripe_subscription_id' });
-
-        if (error) {
-          console.error('❌ Erro ao salvar:', error);
-        } else {
-          console.log('✅ Assinatura salva com sucesso!');
-        }
       }
       break;
   }

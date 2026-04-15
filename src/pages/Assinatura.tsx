@@ -89,24 +89,24 @@ export default function Assinatura() {
     return () => clearInterval(interval)
   }, [])
 
-  async function carregarAssinatura(userId: string) {
-    try {
-      const { data, error } = await supabase
-        .from("assinaturas")
-        .select("*")
-        .eq("user_id", userId)
-        .in("status", ["active", "trialing"])
-        .maybeSingle()
+async function carregarAssinatura(userId: string) {
+  try {
+    const { data, error } = await supabase
+      .from("assinaturas")
+      .select("*")
+      .eq("user_id", userId)
+      .in("status", ["active", "trialing"])
+      .order("created_at", { ascending: false })  // Pega a mais recente
+      .limit(1)  // Limita a 1 resultado
+      .maybeSingle();
 
-      if (error) throw error
-      setAssinaturaAtiva(data)
-    } catch (error) {
-      console.error("Erro ao carregar assinatura:", error)
-      setAssinaturaAtiva(null)
-    } finally {
-      setLoading(false)
-    }
+    if (error) throw error;
+    setAssinaturaAtiva(data);
+  } catch (error) {
+    console.error("Erro ao carregar assinatura:", error);
+    setAssinaturaAtiva(null);
   }
+}
 
   // 🔥 Só carrega trial se NÃO houver assinatura ativa
   async function carregarTrialInfo() {
