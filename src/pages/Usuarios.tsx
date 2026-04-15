@@ -253,11 +253,24 @@ async function resetarSenha() {
   setSaving(true);
 
   try {
+    // 🔥 Buscar o UUID do usuário no auth.users usando o email
+    const { data: authUser, error: authError } = await supabase
+      .from('auth.users')
+      .select('id')
+      .eq('email', usuarioSelecionado.email)
+      .single();
+
+    if (authError || !authUser) {
+      throw new Error('Usuário não encontrado no sistema de autenticação');
+    }
+
+    const authUserId = authUser.id; // UUID correto
+
     const response = await fetch('/api/reset-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: usuarioSelecionado.id,
+        userId: authUserId,
         newPassword: novaSenhaReset
       })
     });
@@ -271,12 +284,11 @@ async function resetarSenha() {
     setMensagem({ tipo: "success", texto: `Senha de ${usuarioSelecionado.username} alterada com sucesso!` });
     setUsuarioSelecionado(null);
     setNovaSenhaReset("");
-    carregarUsuarios(); // recarregar lista (opcional)
- } catch (error) {
-  console.error(error);
-  const errorMessage = error instanceof Error ? error.message : String(error);
-  setMensagem({ tipo: "error", texto: errorMessage || "Erro ao resetar senha" });
-}
+    carregarUsuarios();
+  } catch (error: any) {
+    console.error(error);
+    setMensagem({ tipo: "error", texto: error?.message || "Erro ao resetar senha" });
+  }
 
   setSaving(false);
   setTimeout(() => setMensagem(null), 3000);
