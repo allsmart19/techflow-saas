@@ -253,24 +253,12 @@ async function resetarSenha() {
   setSaving(true);
 
   try {
-    // 🔥 Buscar o UUID do usuário no auth.users usando o email
-    const { data: authUser, error: authError } = await supabase
-      .from('auth.users')
-      .select('id')
-      .eq('email', usuarioSelecionado.email)
-      .single();
-
-    if (authError || !authUser) {
-      throw new Error('Usuário não encontrado no sistema de autenticação');
-    }
-
-    const authUserId = authUser.id; // UUID correto
-
+    // 🔥 Envia o e-mail do usuário (não o ID numérico)
     const response = await fetch('/api/reset-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: authUserId,
+        email: usuarioSelecionado.email,
         newPassword: novaSenhaReset
       })
     });

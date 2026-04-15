@@ -11,22 +11,36 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { userId, newPassword } = req.body;
+  const { email, newPassword } = req.body;
 
-  if (!userId || !newPassword) {
-    return res.status(400).json({ error: 'Missing userId or newPassword' });
+  if (!email || !newPassword) {
+    return res.status(400).json({ error: 'Missing email or newPassword' });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'A senha deve ter pelo menos 6 caracteres' });
   }
 
   try {
-    const { error } = await supabase.auth.admin.updateUserById(userId, {
+    // Listar todos os usuários do Auth (paginação não necessária para poucos usuários)
+    const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
+    if (listError) throw listError;
+
+    // Encontrar o usuário pelo e-mail
+    const user = users.find(u => u.email === email);
+    if (!user) {
+      return res.status(404).json({ error: 'Usuário não encontrado no sistema de autenticação' });
+    }
+
+    // Atualizar a senha
+    const { error: updateError } = await supabase.auth.admin.updateUserById(user.id, {
       password: newPassword
     });
+    if (updateError) throw updateError;
 
-    if (error) throw error;
-
-    return res.status(200).json({ success: true });
+    return res.status(200).json({ success: true, message: 'Senha alterada com sucesso' });
   } catch (error) {
     console.error('Erro ao resetar senha:', error);
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message || 'Erro interno' });
   }
 }
