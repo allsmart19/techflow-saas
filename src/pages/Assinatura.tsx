@@ -91,20 +91,27 @@ export default function Assinatura() {
 
 async function carregarAssinatura(userId: string) {
   try {
+    console.log("🔍 Buscando assinatura para usuário:", userId);
+    
     const { data, error } = await supabase
       .from("assinaturas")
       .select("*")
       .eq("user_id", userId)
       .in("status", ["active", "trialing"])
-      .order("created_at", { ascending: false })  // Pega a mais recente
-      .limit(1)  // Limita a 1 resultado
       .maybeSingle();
 
-    if (error) throw error;
-    setAssinaturaAtiva(data);
+    if (error) {
+      console.error("❌ Erro na consulta:", error);
+      setAssinaturaAtiva(null);
+    } else {
+      console.log("✅ Assinatura encontrada:", data);
+      setAssinaturaAtiva(data);
+    }
   } catch (error) {
-    console.error("Erro ao carregar assinatura:", error);
+    console.error("❌ Erro inesperado:", error);
     setAssinaturaAtiva(null);
+  } finally {
+    setLoading(false);
   }
 }
 
