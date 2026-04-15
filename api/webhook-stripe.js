@@ -2,6 +2,13 @@
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
+// 🔥 Desabilitar o body parser padrão da Vercel
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -9,24 +16,23 @@ const supabase = createClient(
 );
 
 export default async function handler(req, res) {
-  // Log para debug
-  console.log('🔔 Webhook chamado! Método:', req.method);
-  
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // 🔥 Ler o raw body como buffer
+  let rawBody = '';
+  for await (const chunk of req) {
+    rawBody += chunk;
   }
 
   const sig = req.headers['stripe-signature'];
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-  if (!sig) {
-    console.error('❌ Nenhuma assinatura Stripe encontrada');
-    return res.status(400).json({ error: 'No signature' });
-  }
-
   let event;
+
   try {
-    event = await stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    event = await stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
     console.log('✅ Evento verificado:', event.type);
   } catch (err) {
     console.error('❌ Erro na verificação:', err.message);
@@ -41,15 +47,13 @@ export default async function handler(req, res) {
         const subscriptionId = session.subscription;
         const customerId = session.customer;
 
-        console.log('💰 Checkout completed:', { userId, subscriptionId, customerId });
-
         if (subscriptionId && userId) {
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
           const planName = subscription.items.data[0]?.price?.nickname || 'Pro';
           const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
           const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000) : null;
 
-          const { error } = await supabase.from('assinaturas').upsert({
+          await supabase.from('assinaturas').upsert({
             user_id: userId,
             stripe_subscription_id: subscriptionId,
             stripe_customer_id: customerId,
@@ -60,12 +64,6 @@ export default async function handler(req, res) {
             trial_end: trialEnd,
             cancel_at_period_end: subscription.cancel_at_period_end,
           }, { onConflict: 'stripe_subscription_id' });
-
-          if (error) {
-            console.error('❌ Erro ao salvar assinatura:', error);
-          } else {
-            console.log('✅ Assinatura salva com sucesso!');
-          }
         }
         break;
 
@@ -75,14 +73,12 @@ export default async function handler(req, res) {
         const newSubscriptionId = newSub.id;
         const newCustomerId = newSub.customer;
 
-        console.log('🆕 Assinatura criada:', { newUserId, newSubscriptionId, newCustomerId });
-
         if (newSubscriptionId && newUserId) {
           const planName = newSub.items.data[0]?.price?.nickname || 'Pro';
           const currentPeriodEnd = new Date(newSub.current_period_end * 1000);
           const trialEnd = newSub.trial_end ? new Date(newSub.trial_end * 1000) : null;
 
-          const { error } = await supabase.from('assinaturas').upsert({
+          await supabase.from('assinaturas').upsert({
             user_id: newUserId,
             stripe_subscription_id: newSubscriptionId,
             stripe_customer_id: newCustomerId,
@@ -93,19 +89,11 @@ export default async function handler(req, res) {
             trial_end: trialEnd,
             cancel_at_period_end: newSub.cancel_at_period_end,
           }, { onConflict: 'stripe_subscription_id' });
-
-          if (error) {
-            console.error('❌ Erro ao salvar assinatura:', error);
-          } else {
-            console.log('✅ Assinatura salva com sucesso!');
-          }
         }
         break;
 
       case 'customer.subscription.updated':
         const updatedSub = event.data.object;
-        console.log('🔄 Assinatura atualizada:', updatedSub.id);
-        
         await supabase
           .from('assinaturas')
           .update({
@@ -119,16 +107,11 @@ export default async function handler(req, res) {
 
       case 'customer.subscription.deleted':
         const deletedSub = event.data.object;
-        console.log('❌ Assinatura cancelada:', deletedSub.id);
-        
         await supabase
           .from('assinaturas')
           .update({ status: 'canceled' })
           .eq('stripe_subscription_id', deletedSub.id);
         break;
-
-      default:
-        console.log(`📌 Evento não tratado: ${event.type}`);
     }
 
     res.status(200).json({ received: true });
