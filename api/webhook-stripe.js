@@ -9,7 +9,10 @@ export const config = {
   },
 };
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: '2024-11-20.dahlia',
+});
+
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -41,19 +44,34 @@ export default async function handler(req, res) {
 
   try {
     switch (event.type) {
-      case 'checkout.session.completed':
+      case 'checkout.session.completed': {
         const session = event.data.object;
         const userId = session.metadata?.userId ? parseInt(session.metadata.userId) : null;
         const subscriptionId = session.subscription;
         const customerId = session.customer;
 
+        console.log('📦 Dados recebidos:', { userId, subscriptionId, customerId });
+
         if (subscriptionId && userId) {
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-          const planName = subscription.items.data[0]?.price?.nickname || 'Pro';
+          
+          // Mapeamento dos priceIds para nomes amigáveis
+          const PLAN_NAMES = {
+            "price_1TLlGuGhIX9bHHYRIwSV4W4o": "Plano Pro Mensal",
+            "price_1TLlJqGhIX9bHHYRPHdBYv09": "Plano Pro Anual"
+          };
+
+          const priceId = subscription.items.data[0]?.price?.id;
+          const planName = PLAN_NAMES[priceId] || subscription.items.data[0]?.price?.nickname || "Pro";
           const currentPeriodEnd = new Date(subscription.current_period_end * 1000);
           const trialEnd = subscription.trial_end ? new Date(subscription.trial_end * 1000) : null;
 
-          await supabase.from('assinaturas').upsert({
+          console.log('📅 current_period_end (timestamp):', subscription.current_period_end);
+          console.log('📅 data_expiracao calculada:', currentPeriodEnd);
+          console.log('📅 status:', subscription.status);
+          console.log('📅 plano:', planName);
+
+          const { error } = await supabase.from('assinaturas').upsert({
             user_id: userId,
             stripe_subscription_id: subscriptionId,
             stripe_customer_id: customerId,
@@ -64,21 +82,40 @@ export default async function handler(req, res) {
             trial_end: trialEnd,
             cancel_at_period_end: subscription.cancel_at_period_end,
           }, { onConflict: 'stripe_subscription_id' });
+
+          if (error) {
+            console.error('❌ Erro detalhado do Supabase:', error);
+          } else {
+            console.log('✅ Assinatura salva com sucesso! data_expiracao:', currentPeriodEnd);
+          }
         }
         break;
+      }
 
-      case 'customer.subscription.created':
+      case 'customer.subscription.created': {
         const newSub = event.data.object;
         const newUserId = newSub.metadata?.userId ? parseInt(newSub.metadata.userId) : null;
         const newSubscriptionId = newSub.id;
         const newCustomerId = newSub.customer;
 
+        console.log('🆕 Assinatura criada:', { newUserId, newSubscriptionId, newCustomerId });
+
         if (newSubscriptionId && newUserId) {
-          const planName = newSub.items.data[0]?.price?.nickname || 'Pro';
+          // Mapeamento dos priceIds para nomes amigáveis
+          const PLAN_NAMES = {
+            "price_1TLlGuGhIX9bHHYRIwSV4W4o": "Plano Pro Mensal",
+            "price_1TLlJqGhIX9bHHYRPHdBYv09": "Plano Pro Anual"
+          };
+
+          const priceId = newSub.items.data[0]?.price?.id;
+          const planName = PLAN_NAMES[priceId] || newSub.items.data[0]?.price?.nickname || "Pro";
           const currentPeriodEnd = new Date(newSub.current_period_end * 1000);
           const trialEnd = newSub.trial_end ? new Date(newSub.trial_end * 1000) : null;
 
-          await supabase.from('assinaturas').upsert({
+          console.log('📅 Nova assinatura - data_expiracao:', currentPeriodEnd);
+          console.log('📅 Novo plano:', planName);
+
+          const { error } = await supabase.from('assinaturas').upsert({
             user_id: newUserId,
             stripe_subscription_id: newSubscriptionId,
             stripe_customer_id: newCustomerId,
@@ -89,11 +126,20 @@ export default async function handler(req, res) {
             trial_end: trialEnd,
             cancel_at_period_end: newSub.cancel_at_period_end,
           }, { onConflict: 'stripe_subscription_id' });
+
+          if (error) {
+            console.error('❌ Erro detalhado do Supabase:', error);
+          } else {
+            console.log('✅ Nova assinatura salva com sucesso!');
+          }
         }
         break;
+      }
 
-      case 'customer.subscription.updated':
+      case 'customer.subscription.updated': {
         const updatedSub = event.data.object;
+        console.log('🔄 Assinatura atualizada:', updatedSub.id);
+        
         await supabase
           .from('assinaturas')
           .update({
@@ -104,14 +150,21 @@ export default async function handler(req, res) {
           })
           .eq('stripe_subscription_id', updatedSub.id);
         break;
+      }
 
-      case 'customer.subscription.deleted':
+      case 'customer.subscription.deleted': {
         const deletedSub = event.data.object;
+        console.log('❌ Assinatura cancelada:', deletedSub.id);
+        
         await supabase
           .from('assinaturas')
           .update({ status: 'canceled' })
           .eq('stripe_subscription_id', deletedSub.id);
         break;
+      }
+
+      default:
+        console.log(`📌 Evento não tratado: ${event.type}`);
     }
 
     res.status(200).json({ received: true });
