@@ -14,6 +14,7 @@ export default function Ajustes() {
   const [userRole, setUserRole] = useState<string>("user")
   const [saving, setSaving] = useState(false)
   const [userId, setUserId] = useState<number | null>(null)
+  const [lojaId, setLojaId] = useState<number | null>(null)
 
   // Estado para controlar seções expandidas
   const [secaoAberta, setSecaoAberta] = useState<string>("fornecedores")
@@ -46,11 +47,22 @@ export default function Ajustes() {
       setUserName(user.username || "admin")
       setUserRole(user.role || "user")
       setUserId(user.id)
+      
+      // Buscar loja_id do usuário
+      const { data: userInfo } = await supabase
+        .from("usuarios")
+        .select("loja_id")
+        .eq("id", user.id)
+        .single()
+      
+      const lojaIdValue = userInfo?.loja_id || 1
+      setLojaId(lojaIdValue)
+      
       if (user.id) {
         await Promise.all([
-          carregarFornecedores(user.id),
-          carregarMarcas(user.id),
-          carregarCondicoes(user.id)
+          carregarFornecedores(lojaIdValue),
+          carregarMarcas(lojaIdValue),
+          carregarCondicoes(lojaIdValue)
         ])
       }
     }
@@ -67,62 +79,45 @@ export default function Ajustes() {
   }
 
   // ========== FORNECEDORES ==========
-  async function carregarFornecedores(userId: number) {
-    // Primeiro, obter loja_id do usuário
-    const { data: userInfo } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", userId)
-      .single()
-    
-    const lojaId = userInfo?.loja_id || 1
-    
+  async function carregarFornecedores(lojaIdValue: number) {
     const { data, error } = await supabase
       .from('fornecedores')
       .select('*')
-      .eq('loja_id', lojaId)
+      .eq('loja_id', lojaIdValue)
       .order('nome')
     if (!error && data) setFornecedores(data)
   }
 
   async function adicionarFornecedor() {
-    if (!novoFornecedor.trim() || !userId) return
-    
-    // Obter loja_id do usuário
-    const { data: userInfo } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", userId)
-      .single()
-    
-    const lojaId = userInfo?.loja_id || 1
+    if (!novoFornecedor.trim() || !lojaId) return
     
     const { error } = await supabase
       .from('fornecedores')
       .insert([{ nome: novoFornecedor.toUpperCase(), loja_id: lojaId }])
     if (error) {
+      console.error("Erro ao adicionar fornecedor:", error)
       setMensagem({ tipo: "error", texto: "Erro ao adicionar fornecedor" })
     } else {
       setNovoFornecedor("")
-      await carregarFornecedores(userId)
+      await carregarFornecedores(lojaId)
       setMensagem({ tipo: "success", texto: "Fornecedor adicionado!" })
     }
     setTimeout(() => setMensagem(null), 3000)
   }
 
   async function salvarEdicaoFornecedor() {
-    if (!editandoFornecedor || !novoFornecedor.trim() || !userId) return
+    if (!editandoFornecedor || !novoFornecedor.trim() || !lojaId) return
     const { error } = await supabase
       .from('fornecedores')
       .update({ nome: novoFornecedor.toUpperCase() })
       .eq('id', editandoFornecedor.id)
-      .eq('user_id', String(userId))
+      .eq('loja_id', lojaId)
     if (error) {
       setMensagem({ tipo: "error", texto: "Erro ao atualizar fornecedor" })
     } else {
       setEditandoFornecedor(null)
       setNovoFornecedor("")
-      await carregarFornecedores(userId)
+      await carregarFornecedores(lojaId)
       setMensagem({ tipo: "success", texto: "Fornecedor atualizado!" })
     }
     setTimeout(() => setMensagem(null), 3000)
@@ -130,16 +125,7 @@ export default function Ajustes() {
 
   async function excluirFornecedor(id: number) {
     if (!confirm("Tem certeza que deseja excluir este fornecedor?")) return
-    if (!userId) return
-    
-    // Obter loja_id do usuário
-    const { data: userInfo } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", userId)
-      .single()
-    
-    const lojaId = userInfo?.loja_id || 1
+    if (!lojaId) return
     
     const { error } = await supabase
       .from('fornecedores')
@@ -149,7 +135,7 @@ export default function Ajustes() {
     if (error) {
       setMensagem({ tipo: "error", texto: "Erro ao excluir fornecedor" })
     } else {
-      await carregarFornecedores(userId)
+      await carregarFornecedores(lojaId)
       setMensagem({ tipo: "success", texto: "Fornecedor excluído!" })
     }
     setTimeout(() => setMensagem(null), 3000)
@@ -161,60 +147,45 @@ export default function Ajustes() {
   }
 
   // ========== MARCAS ==========
-  async function carregarMarcas(userId: number) {
-    const { data: userInfo } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", userId)
-      .single()
-    
-    const lojaId = userInfo?.loja_id || 1
-    
+  async function carregarMarcas(lojaIdValue: number) {
     const { data, error } = await supabase
       .from('marcas')
       .select('*')
-      .eq('loja_id', lojaId)
+      .eq('loja_id', lojaIdValue)
       .order('nome')
     if (!error && data) setMarcas(data)
   }
 
   async function adicionarMarca() {
-    if (!novaMarca.trim() || !userId) return
-    
-    const { data: userInfo } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", userId)
-      .single()
-    
-    const lojaId = userInfo?.loja_id || 1
+    if (!novaMarca.trim() || !lojaId) return
     
     const { error } = await supabase
       .from('marcas')
       .insert([{ nome: novaMarca.toUpperCase(), loja_id: lojaId }])
     if (error) {
+      console.error("Erro ao adicionar marca:", error)
       setMensagem({ tipo: "error", texto: "Erro ao adicionar marca" })
     } else {
       setNovaMarca("")
-      await carregarMarcas(userId)
+      await carregarMarcas(lojaId)
       setMensagem({ tipo: "success", texto: "Marca adicionada!" })
     }
     setTimeout(() => setMensagem(null), 3000)
   }
 
   async function salvarEdicaoMarca() {
-    if (!editandoMarca || !novaMarca.trim() || !userId) return
+    if (!editandoMarca || !novaMarca.trim() || !lojaId) return
     const { error } = await supabase
       .from('marcas')
       .update({ nome: novaMarca.toUpperCase() })
       .eq('id', editandoMarca.id)
-      .eq('user_id', String(userId))
+      .eq('loja_id', lojaId)
     if (error) {
       setMensagem({ tipo: "error", texto: "Erro ao atualizar marca" })
     } else {
       setEditandoMarca(null)
       setNovaMarca("")
-      await carregarMarcas(userId)
+      await carregarMarcas(lojaId)
       setMensagem({ tipo: "success", texto: "Marca atualizada!" })
     }
     setTimeout(() => setMensagem(null), 3000)
@@ -222,15 +193,7 @@ export default function Ajustes() {
 
   async function excluirMarca(id: number) {
     if (!confirm("Tem certeza que deseja excluir esta marca?")) return
-    if (!userId) return
-    
-    const { data: userInfo } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", userId)
-      .single()
-    
-    const lojaId = userInfo?.loja_id || 1
+    if (!lojaId) return
     
     const { error } = await supabase
       .from('marcas')
@@ -240,7 +203,7 @@ export default function Ajustes() {
     if (error) {
       setMensagem({ tipo: "error", texto: "Erro ao excluir marca" })
     } else {
-      await carregarMarcas(userId)
+      await carregarMarcas(lojaId)
       setMensagem({ tipo: "success", texto: "Marca excluída!" })
     }
     setTimeout(() => setMensagem(null), 3000)
@@ -252,60 +215,45 @@ export default function Ajustes() {
   }
 
   // ========== CONDIÇÕES ========== (tabela: condicoes)
-  async function carregarCondicoes(userId: number) {
-    const { data: userInfo } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", userId)
-      .single()
-    
-    const lojaId = userInfo?.loja_id || 1
-    
+  async function carregarCondicoes(lojaIdValue: number) {
     const { data, error } = await supabase
       .from('condicoes')
       .select('*')
-      .eq('loja_id', lojaId)
+      .eq('loja_id', lojaIdValue)
       .order('nome')
     if (!error && data) setCondicoes(data)
   }
 
   async function adicionarCondicao() {
-    if (!novaCondicao.trim() || !userId) return
-    
-    const { data: userInfo } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", userId)
-      .single()
-    
-    const lojaId = userInfo?.loja_id || 1
+    if (!novaCondicao.trim() || !lojaId) return
     
     const { error } = await supabase
       .from('condicoes')
       .insert([{ nome: novaCondicao.toUpperCase(), loja_id: lojaId }])
     if (error) {
+      console.error("Erro ao adicionar condição:", error)
       setMensagem({ tipo: "error", texto: "Erro ao adicionar condição" })
     } else {
       setNovaCondicao("")
-      await carregarCondicoes(userId)
+      await carregarCondicoes(lojaId)
       setMensagem({ tipo: "success", texto: "Condição adicionada!" })
     }
     setTimeout(() => setMensagem(null), 3000)
   }
 
   async function salvarEdicaoCondicao() {
-    if (!editandoCondicao || !novaCondicao.trim() || !userId) return
+    if (!editandoCondicao || !novaCondicao.trim() || !lojaId) return
     const { error } = await supabase
       .from('condicoes')
       .update({ nome: novaCondicao.toUpperCase() })
       .eq('id', editandoCondicao.id)
-      .eq('user_id', String(userId))
+      .eq('loja_id', lojaId)
     if (error) {
       setMensagem({ tipo: "error", texto: "Erro ao atualizar condição" })
     } else {
       setEditandoCondicao(null)
       setNovaCondicao("")
-      await carregarCondicoes(userId)
+      await carregarCondicoes(lojaId)
       setMensagem({ tipo: "success", texto: "Condição atualizada!" })
     }
     setTimeout(() => setMensagem(null), 3000)
@@ -313,15 +261,7 @@ export default function Ajustes() {
 
   async function excluirCondicao(id: number) {
     if (!confirm("Tem certeza que deseja excluir esta condição?")) return
-    if (!userId) return
-    
-    const { data: userInfo } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", userId)
-      .single()
-    
-    const lojaId = userInfo?.loja_id || 1
+    if (!lojaId) return
     
     const { error } = await supabase
       .from('condicoes')
@@ -331,7 +271,7 @@ export default function Ajustes() {
     if (error) {
       setMensagem({ tipo: "error", texto: "Erro ao excluir condição" })
     } else {
-      await carregarCondicoes(userId)
+      await carregarCondicoes(lojaId)
       setMensagem({ tipo: "success", texto: "Condição excluída!" })
     }
     setTimeout(() => setMensagem(null), 3000)
@@ -345,7 +285,7 @@ export default function Ajustes() {
   // ========== RESETAR PADRÃO ==========
   const resetarPadrao = async () => {
     if (!confirm("Isso irá restaurar todas as configurações padrão. Continuar?")) return
-    if (!userId) return
+    if (!lojaId) return
     setSaving(true)
 
     // Atualizar configurações da loja
@@ -355,6 +295,11 @@ export default function Ajustes() {
     setNomeLojaTemp("Sua Loja")
     setNomeLoja("Sua Loja")
 
+    // Remover dados existentes da loja
+    await supabase.from('fornecedores').delete().eq('loja_id', lojaId)
+    await supabase.from('marcas').delete().eq('loja_id', lojaId)
+    await supabase.from('condicoes').delete().eq('loja_id', lojaId)
+
     // Fornecedores padrão
     const defaultFornecedores = [
       "NEW STORE", "NOVA PEÇAS", "FLORITEC", "VITOR CAMELÃO"
@@ -362,9 +307,9 @@ export default function Ajustes() {
     for (const nome of defaultFornecedores) {
       await supabase
         .from('fornecedores')
-        .upsert({ nome, user_id: userId }, { onConflict: 'nome,user_id' })
+        .insert({ nome, loja_id: lojaId })
     }
-    await carregarFornecedores(userId)
+    await carregarFornecedores(lojaId)
 
     // Marcas padrão
     const defaultMarcas = [
@@ -373,9 +318,9 @@ export default function Ajustes() {
     for (const nome of defaultMarcas) {
       await supabase
         .from('marcas')
-        .upsert({ nome, user_id: userId }, { onConflict: 'nome,user_id' })
+        .insert({ nome, loja_id: lojaId })
     }
-    await carregarMarcas(userId)
+    await carregarMarcas(lojaId)
 
     // Condições padrão
     const defaultCondicoes = [
@@ -384,16 +329,16 @@ export default function Ajustes() {
     for (const nome of defaultCondicoes) {
       await supabase
         .from('condicoes')
-        .upsert({ nome, user_id: userId }, { onConflict: 'nome,user_id' })
+        .insert({ nome, loja_id: lojaId })
     }
-    await carregarCondicoes(userId)
+    await carregarCondicoes(lojaId)
 
     setMensagem({ tipo: "success", texto: "Configurações restauradas para o padrão!" })
     setSaving(false)
     setTimeout(() => setMensagem(null), 3000)
   }
 
-  // ========== FUNÇÕES DE UI (mesmas) ==========
+  // ========== FUNÇÕES DE UI ==========
   const handleLogoUpload = (event: any) => {
     const file = event.target.files?.[0]
     if (file) {
@@ -606,7 +551,7 @@ export default function Ajustes() {
                   {fornecedores.map((f: any) => (
                     <div key={f.id} className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg px-2 py-1.5 transition-colors">
                       <span className="text-xs text-gray-700 dark:text-gray-300">{f.nome}</span>
-                      <button onClick={() => editandoFornecedor(f)} className="p-0.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors">
+                      <button onClick={() => setEditandoFornecedor(f)} className="p-0.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors">
                         <Edit className="w-3 h-3" />
                       </button>
                       <button onClick={() => excluirFornecedor(f.id)} className="p-0.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors">
@@ -662,7 +607,7 @@ export default function Ajustes() {
                   {marcas.map((m: any) => (
                     <div key={m.id} className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg px-2 py-1.5 transition-colors">
                       <span className="text-xs text-gray-700 dark:text-gray-300">{m.nome}</span>
-                      <button onClick={() => editandoMarca(m)} className="p-0.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors">
+                      <button onClick={() => setEditandoMarca(m)} className="p-0.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors">
                         <Edit className="w-3 h-3" />
                       </button>
                       <button onClick={() => excluirMarca(m.id)} className="p-0.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors">
@@ -718,7 +663,7 @@ export default function Ajustes() {
                   {condicoes.map((c: any) => (
                     <div key={c.id} className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg px-2 py-1.5 transition-colors">
                       <span className="text-xs text-gray-700 dark:text-gray-300">{c.nome}</span>
-                      <button onClick={() => editandoCondicao(c)} className="p-0.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors">
+                      <button onClick={() => setEditandoCondicao(c)} className="p-0.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors">
                         <Edit className="w-3 h-3" />
                       </button>
                       <button onClick={() => excluirCondicao(c.id)} className="p-0.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors">
