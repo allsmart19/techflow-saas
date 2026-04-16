@@ -46,14 +46,29 @@ export default async function handler(req, res) {
         .single();
 
       if (userData?.stripe_customer_id) {
-        const portalSession = await stripe.billingPortal.sessions.create({
-          customer: userData.stripe_customer_id,
-          return_url: 'https://techflow-saas-livid.vercel.app/assinatura',
-        });
-
+        try {
+          const portalSession = await stripe.billingPortal.sessions.create({
+            customer: userData.stripe_customer_id,
+            return_url: 'https://techflow-saas-livid.vercel.app/assinatura',
+          });
+          
+          console.log('✅ Portal session criada:', portalSession.url);
+          
+          return res.status(400).json({
+            error: 'Você já possui uma assinatura ativa. Gerencie-a no portal para trocar de plano.',
+            portalUrl: portalSession.url
+          });
+        } catch (portalError) {
+          console.error('❌ Erro ao criar portal session:', portalError);
+          return res.status(400).json({
+            error: 'Você já possui uma assinatura ativa. Acesse o Stripe para gerenciar.',
+            portalUrl: null
+          });
+        }
+      } else {
         return res.status(400).json({
-          error: 'Você já possui uma assinatura ativa. Gerencie-a no portal para trocar de plano.',
-          portalUrl: portalSession.url
+          error: 'Você já possui uma assinatura ativa. Contate o suporte para trocar de plano.',
+          portalUrl: null
         });
       }
     }
