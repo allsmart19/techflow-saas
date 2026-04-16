@@ -63,6 +63,10 @@ export default function Assinatura() {
     }
 
     const userData = JSON.parse(userStr)
+      // 🔥 LOGS PARA DEBUG DO EMAIL
+  console.log("📧 Email do usuário:", userData.email);
+  console.log("📝 Username:", userData.username);
+  console.log("🆔 User ID:", userData.id);
     setUser(userData)
 
     // Primeiro carrega assinatura, depois (se não houver) carrega trialInfo
@@ -75,6 +79,7 @@ export default function Assinatura() {
       carregarAssinatura(userData.id)
     })
   }, [])
+  
 
   // 🔥 REVALIDAÇÃO AUTOMÁTICA DA ASSINATURA
   useEffect(() => {
@@ -156,46 +161,46 @@ async function carregarAssinatura(userId: string) {
     }
   }
 
-  const handleAssinar = async (plano: typeof PLANOS.monthly) => {
-    if (!user) {
-      navigate("/login")
-      return
-    }
-
-    setProcessando(true)
-
-    try {
-      const response = await fetch("https://techflow-saas-livid.vercel.app/api/create-checkout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          priceId: plano.priceId,
-          userId: user.id,
-          userEmail: user.email || `${user.username}@app.com`
-        })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        if (data.portalUrl) {
-          alert(data.error)
-          window.location.href = data.portalUrl
-        } else {
-          throw new Error(data.error || "Erro ao criar checkout")
-        }
-      }
-
-      window.location.href = data.url
-    } catch (error: any) {
-      console.error(error)
-      alert(error.message || "Erro ao processar assinatura")
-    } finally {
-      setProcessando(false)
-    }
+const handleAssinar = async (plano: typeof PLANOS.monthly) => {
+  if (!user) {
+    navigate("/login");
+    return;
   }
+
+  setProcessando(true);
+
+  try {
+    const response = await fetch("https://techflow-saas-livid.vercel.app/api/create-checkout", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        priceId: plano.priceId,
+        userId: user.id,
+        userEmail: user.email  // 🔥 APENAS O EMAIL, SEM FALLBACK
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      if (data.portalUrl) {
+        alert(data.error);
+        window.location.href = data.portalUrl;
+      } else {
+        throw new Error(data.error || "Erro ao criar checkout");
+      }
+    }
+
+    window.location.href = data.url;
+  } catch (error: any) {
+    console.error(error);
+    alert(error.message || "Erro ao processar assinatura");
+  } finally {
+    setProcessando(false);
+  }
+};
 
 const handleGerenciarAssinatura = async () => {
   const customerId = assinaturaAtiva?.stripe_customer_id;
