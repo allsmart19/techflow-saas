@@ -368,12 +368,12 @@ if (assinaturaAtiva && ["active", "trialing"].includes(assinaturaAtiva.status)) 
                 ))}
               </ul>
               <button
-                onClick={() => handleGerenciarAssinatura()}
-                disabled={processando}
-                className="w-full border border-purple-600 text-purple-600 dark:text-purple-400 dark:border-purple-500 py-2 rounded-lg text-xs font-medium hover:bg-purple-50 dark:hover:bg-purple-900/30 transition disabled:opacity-50"
-              >
-                {processando ? "Processando..." : "Trocar para Mensal"}
-              </button>
+              onClick={() => handleGerenciarAssinatura()}
+              disabled={processando}
+              className="..."
+            >
+              {processando ? "Processando..." : "Trocar para Mensal"}
+            </button>
             </div>
           )}
 

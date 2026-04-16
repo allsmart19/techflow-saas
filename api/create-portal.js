@@ -20,6 +20,8 @@ export default async function handler(req, res) {
   try {
     const { customerId } = req.body;
 
+    console.log('🔍 create-portal chamado para customerId:', customerId);
+
     if (!customerId) {
       return res.status(400).json({ error: 'Missing customerId' });
     }
@@ -29,9 +31,11 @@ export default async function handler(req, res) {
       return_url: 'https://techflow-saas-livid.vercel.app/assinatura',
     });
 
+    console.log('✅ Portal session criada:', session.url);
+
     return res.status(200).json({ url: session.url });
   } catch (error) {
-    console.error('Erro ao criar portal session:', error);
+    console.error('❌ Erro ao criar portal session:', error);
     return res.status(500).json({ error: error.message });
   }
 }
