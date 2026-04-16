@@ -28,27 +28,39 @@ export default async function handler(req, res) {
     const currentSubscription = await stripe.subscriptions.retrieve(oldSubscriptionId);
     const customerId = currentSubscription.customer;
 
-    // 2. Criar nova assinatura com o novo plano (cobrança proporcional)
+    // 2. Obter o método de pagamento padrão da assinatura atual
+    const paymentMethodId = currentSubscription.default_payment_method;
+    if (!paymentMethodId) {
+      return res.status(400).json({ error: 'Método de pagamento não encontrado. O cliente precisa ter um cartão associado.' });
+    }
+
+    // 3. (Opcional) Definir este método como padrão no cliente (evita problemas futuros)
+    await stripe.customers.update(customerId, {
+      invoice_settings: { default_payment_method: paymentMethodId },
+    });
+
+    // 4. Criar nova assinatura com o novo plano, usando o mesmo método de pagamento
     const newSubscription = await stripe.subscriptions.create({
       customer: customerId,
       items: [{ price: newPriceId }],
-      proration_behavior: 'always_invoice', // 👈 cobrança proporcional
+      default_payment_method: paymentMethodId, // 🔥 ESSA É A CORREÇÃO PRINCIPAL
+      proration_behavior: 'always_invoice',     // cobrança proporcional
       trial_from_plan: false,
       metadata: { userId: userId.toString() }
     });
 
-    // 3. Cancelar a assinatura antiga (ao final do período atual)
+    // 5. Cancelar a assinatura antiga (ao final do período atual)
     await stripe.subscriptions.update(oldSubscriptionId, {
       cancel_at_period_end: true
     });
 
-    // 4. Atualizar o Supabase: marcar a antiga como cancelada
+    // 6. Atualizar o Supabase: marcar a antiga como cancelada
     await supabase
       .from('assinaturas')
       .update({ status: 'canceled' })
       .eq('stripe_subscription_id', oldSubscriptionId);
 
-    // 5. Inserir a nova assinatura no Supabase
+    // 7. Inserir a nova assinatura no Supabase
     const planName = newPriceId === "price_1TLlGuGhIX9bHHYRIwSV4W4o" 
       ? "Plano Pro Mensal" 
       : "Plano Pro Anual";
