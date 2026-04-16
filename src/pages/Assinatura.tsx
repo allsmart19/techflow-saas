@@ -63,10 +63,9 @@ export default function Assinatura() {
     }
 
     const userData = JSON.parse(userStr)
-      // 🔥 LOGS PARA DEBUG DO EMAIL
-  console.log("📧 Email do usuário:", userData.email);
-  console.log("📝 Username:", userData.username);
-  console.log("🆔 User ID:", userData.id);
+    console.log("📧 Email do usuário:", userData.email);
+    console.log("📝 Username:", userData.username);
+    console.log("🆔 User ID:", userData.id);
     setUser(userData)
 
     // Primeiro carrega assinatura, depois (se não houver) carrega trialInfo
@@ -94,31 +93,31 @@ export default function Assinatura() {
     return () => clearInterval(interval)
   }, [])
 
-async function carregarAssinatura(userId: string) {
-  try {
-    console.log("🔍 Buscando assinatura para usuário:", userId);
-    
-    const { data, error } = await supabase
-      .from("assinaturas")
-      .select("*")
-      .eq("user_id", userId)
-      .in("status", ["active", "trialing"])
-      .maybeSingle();
+  async function carregarAssinatura(userId: string) {
+    try {
+      console.log("🔍 Buscando assinatura para usuário:", userId);
+      
+      const { data, error } = await supabase
+        .from("assinaturas")
+        .select("*")
+        .eq("user_id", userId)
+        .in("status", ["active", "trialing"])
+        .maybeSingle();
 
-    if (error) {
-      console.error("❌ Erro na consulta:", error);
+      if (error) {
+        console.error("❌ Erro na consulta:", error);
+        setAssinaturaAtiva(null);
+      } else {
+        console.log("✅ Assinatura encontrada:", data);
+        setAssinaturaAtiva(data);
+      }
+    } catch (error) {
+      console.error("❌ Erro inesperado:", error);
       setAssinaturaAtiva(null);
-    } else {
-      console.log("✅ Assinatura encontrada:", data);
-      setAssinaturaAtiva(data);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error("❌ Erro inesperado:", error);
-    setAssinaturaAtiva(null);
-  } finally {
-    setLoading(false);
   }
-}
 
   // 🔥 Só carrega trial se NÃO houver assinatura ativa
   async function carregarTrialInfo() {
@@ -161,122 +160,154 @@ async function carregarAssinatura(userId: string) {
     }
   }
 
-const handleAssinar = async (plano: typeof PLANOS.monthly) => {
-  if (!user) {
-    navigate("/login");
-    return;
-  }
-
-  // 🔥 LOGS PARA DEBUG
-  console.log("📦 user completo:", user);
-  console.log("📧 user.email:", user.email);
-  console.log("🆔 user.id:", user.id);
-  console.log("🏷️ priceId:", plano.priceId);
-
-  // 🔥 Garantir que o email existe
-  let emailParaEnviar = user.email;
-  
-  // Se o email não estiver no objeto user, buscar do sessionStorage
-  if (!emailParaEnviar) {
-    const userStr = sessionStorage.getItem("user");
-    if (userStr) {
-      const userData = JSON.parse(userStr);
-      emailParaEnviar = userData.email;
-      console.log("📧 Email recuperado do sessionStorage:", emailParaEnviar);
+  const handleAssinar = async (plano: typeof PLANOS.monthly) => {
+    if (!user) {
+      navigate("/login");
+      return;
     }
-  }
-  
-  // Se ainda não tiver email, buscar do Supabase
-  if (!emailParaEnviar) {
-    const { data } = await supabase
-      .from("usuarios")
-      .select("email")
-      .eq("id", user.id)
-      .single();
-    emailParaEnviar = data?.email;
-    console.log("📧 Email recuperado do Supabase:", emailParaEnviar);
-  }
 
-  if (!emailParaEnviar) {
-    alert("Erro: Seu email não foi encontrado. Contate o suporte.");
-    setProcessando(false);
-    return;
-  }
+    console.log("📦 user completo:", user);
+    console.log("📧 user.email:", user.email);
+    console.log("🆔 user.id:", user.id);
+    console.log("🏷️ priceId:", plano.priceId);
 
-  setProcessando(true);
-
-  try {
-    const response = await fetch("https://techflow-saas-livid.vercel.app/api/create-checkout", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        priceId: plano.priceId,
-        userId: user.id,
-        userEmail: emailParaEnviar
-      })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      if (data.portalUrl) {
-        alert(data.error);
-        window.location.href = data.portalUrl;
-      } else {
-        throw new Error(data.error || "Erro ao criar checkout");
+    let emailParaEnviar = user.email;
+    
+    if (!emailParaEnviar) {
+      const userStr = sessionStorage.getItem("user");
+      if (userStr) {
+        const userData = JSON.parse(userStr);
+        emailParaEnviar = userData.email;
+        console.log("📧 Email recuperado do sessionStorage:", emailParaEnviar);
       }
     }
-
-    window.location.href = data.url;
-  } catch (error: any) {
-    console.error(error);
-    alert(error.message || "Erro ao processar assinatura");
-  } finally {
-    setProcessando(false);
-  }
-};
-
-const handleGerenciarAssinatura = async () => {
-  const customerId = assinaturaAtiva?.stripe_customer_id;
-  
-  console.log("🔍 customerId:", customerId);
-  
-  if (!customerId) {
-    alert("Nenhum customer ID encontrado. Contate o suporte.");
-    return;
-  }
-
-  setProcessando(true);
-
-  try {
-    const response = await fetch('/api/create-portal', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customerId })
-    });
-
-    const data = await response.json();
-    console.log("📦 Resposta do create-portal:", data);
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Erro ao acessar portal');
+    
+    if (!emailParaEnviar) {
+      const { data } = await supabase
+        .from("usuarios")
+        .select("email")
+        .eq("id", user.id)
+        .single();
+      emailParaEnviar = data?.email;
+      console.log("📧 Email recuperado do Supabase:", emailParaEnviar);
     }
 
-    if (data.url) {
-      console.log("✅ Redirecionando para:", data.url);
+    if (!emailParaEnviar) {
+      alert("Erro: Seu email não foi encontrado. Contate o suporte.");
+      setProcessando(false);
+      return;
+    }
+
+    setProcessando(true);
+
+    try {
+      const response = await fetch("https://techflow-saas-livid.vercel.app/api/create-checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          priceId: plano.priceId,
+          userId: user.id,
+          userEmail: emailParaEnviar
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (data.portalUrl) {
+          alert(data.error);
+          window.location.href = data.portalUrl;
+        } else {
+          throw new Error(data.error || "Erro ao criar checkout");
+        }
+      }
+
       window.location.href = data.url;
-    } else {
-      throw new Error('URL não retornada');
+    } catch (error: any) {
+      console.error(error);
+      alert(error.message || "Erro ao processar assinatura");
+    } finally {
+      setProcessando(false);
     }
-  } catch (error: any) {
-    console.error("❌ Erro:", error);
-    alert(error.message || "Erro ao acessar o portal");
-  } finally {
-    setProcessando(false);
-  }
-};
+  };
+
+  const handleGerenciarAssinatura = async () => {
+    const customerId = assinaturaAtiva?.stripe_customer_id;
+    
+    console.log("🔍 customerId:", customerId);
+    
+    if (!customerId) {
+      alert("Nenhum customer ID encontrado. Contate o suporte.");
+      return;
+    }
+
+    setProcessando(true);
+
+    try {
+      const response = await fetch('/api/create-portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId })
+      });
+
+      const data = await response.json();
+      console.log("📦 Resposta do create-portal:", data);
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao acessar portal');
+      }
+
+      if (data.url) {
+        console.log("✅ Redirecionando para:", data.url);
+        window.location.href = data.url;
+      } else {
+        throw new Error('URL não retornada');
+      }
+    } catch (error: any) {
+      console.error("❌ Erro:", error);
+      alert(error.message || "Erro ao acessar o portal");
+    } finally {
+      setProcessando(false);
+    }
+  };
+
+  // 🔥 NOVA FUNÇÃO: Troca de plano via API (cobrança proporcional)
+  const handleSwitchPlan = async (newPriceId: string, oldSubscriptionId: string) => {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+
+    setProcessando(true);
+    try {
+      const response = await fetch('/api/switch-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          newPriceId,
+          oldSubscriptionId
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao trocar plano');
+      }
+
+      alert('Plano alterado com sucesso! A nova assinatura já está ativa.');
+      // Recarregar a página para atualizar os dados
+      window.location.reload();
+    } catch (error: any) {
+      console.error(error);
+      alert(error.message || 'Erro ao processar a troca de plano');
+    } finally {
+      setProcessando(false);
+    }
+  };
 
   const formatarData = (data: string) =>
     data ? new Date(data).toLocaleDateString("pt-BR") : "N/A"
@@ -299,166 +330,164 @@ const handleGerenciarAssinatura = async () => {
   // =====================================================
   // 1. TEM ASSINATURA ATIVA (active ou trialing)
   // =====================================================
-    // 🔥 TEM ASSINATURA ATIVA
-if (assinaturaAtiva && ["active", "trialing"].includes(assinaturaAtiva.status)) {
-  const isTrial = assinaturaAtiva.status === "trialing";
-  const diasRestantes = getDiasRestantes(assinaturaAtiva.data_expiracao);
-  const canceladoNoFim = assinaturaAtiva.cancel_at_period_end;
-  
+  if (assinaturaAtiva && ["active", "trialing"].includes(assinaturaAtiva.status)) {
+    const isTrial = assinaturaAtiva.status === "trialing";
+    const diasRestantes = getDiasRestantes(assinaturaAtiva.data_expiracao);
+    const canceladoNoFim = assinaturaAtiva.cancel_at_period_end;
+    
     console.log("📅 Assinatura ativa:", {
-    plano: assinaturaAtiva.plano,
-    data_inicio: assinaturaAtiva.data_inicio,
-    data_expiracao: assinaturaAtiva.data_expiracao
-  });
+      plano: assinaturaAtiva.plano,
+      data_inicio: assinaturaAtiva.data_inicio,
+      data_expiracao: assinaturaAtiva.data_expiracao
+    });
 
-  // Identificar qual plano o cliente tem atualmente
-  const planoAtual = assinaturaAtiva.plano || "";
-  const isPlanoMensal = planoAtual.includes("Mensal") || planoAtual === "Plano Pro Mensal";
-  const isPlanoAnual = planoAtual.includes("Anual") || planoAtual === "Plano Pro Anual";
+    const planoAtual = assinaturaAtiva.plano || "";
+    const isPlanoMensal = planoAtual.includes("Mensal") || planoAtual === "Plano Pro Mensal";
+    const isPlanoAnual = planoAtual.includes("Anual") || planoAtual === "Plano Pro Anual";
 
-  return (
-    <div className="p-6 max-w-6xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Assinatura</h1>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Gerencie sua assinatura</p>
-      </div>
-
-      {/* Banner da assinatura ativa */}
-      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl p-6 text-white mb-6">
-        <div className="flex items-center gap-3 mb-3">
-          <Zap className="w-6 h-6" />
-          <h2 className="text-xl font-bold">{isTrial ? "Período de Teste Ativo" : "Assinatura Ativa"}</h2>
+    return (
+      <div className="p-6 max-w-6xl mx-auto bg-gray-50 dark:bg-gray-900 min-h-screen">
+        <div className="mb-6">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Assinatura</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Gerencie sua assinatura</p>
         </div>
-        <p className="text-3xl font-bold mb-1">{assinaturaAtiva.plano || "Plano Pro"}</p>
 
-        {canceladoNoFim ? (
-          <div className="bg-yellow-500/20 border border-yellow-400 rounded-lg p-3 mt-3">
-            <p className="text-sm font-semibold">⚠️ Cancelamento programado</p>
-            <p className="text-sm">
-              Sua assinatura permanecerá ativa até <strong>{formatarData(assinaturaAtiva.data_expiracao)}</strong>.
-              Após essa data, seu acesso será desativado.
-            </p>
+        {/* Banner da assinatura ativa */}
+        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl p-6 text-white mb-6">
+          <div className="flex items-center gap-3 mb-3">
+            <Zap className="w-6 h-6" />
+            <h2 className="text-xl font-bold">{isTrial ? "Período de Teste Ativo" : "Assinatura Ativa"}</h2>
           </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
-            <div>
-              <p className="text-xs opacity-75">Data de início</p>
-              <p className="font-semibold">{formatarData(assinaturaAtiva.data_inicio)}</p>
-            </div>
-            <div>
-              <p className="text-xs opacity-75">{isTrial ? "Término do teste" : "Próxima cobrança"}</p>
-              <p className="font-semibold">
-                {isTrial && assinaturaAtiva.trial_end 
-                  ? formatarData(assinaturaAtiva.trial_end) 
-                  : formatarData(assinaturaAtiva.data_expiracao)}
+          <p className="text-3xl font-bold mb-1">{assinaturaAtiva.plano || "Plano Pro"}</p>
+
+          {canceladoNoFim ? (
+            <div className="bg-yellow-500/20 border border-yellow-400 rounded-lg p-3 mt-3">
+              <p className="text-sm font-semibold">⚠️ Cancelamento programado</p>
+              <p className="text-sm">
+                Sua assinatura permanecerá ativa até <strong>{formatarData(assinaturaAtiva.data_expiracao)}</strong>.
+                Após essa data, seu acesso será desativado.
               </p>
             </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
+              <div>
+                <p className="text-xs opacity-75">Data de início</p>
+                <p className="font-semibold">{formatarData(assinaturaAtiva.data_inicio)}</p>
+              </div>
+              <div>
+                <p className="text-xs opacity-75">{isTrial ? "Término do teste" : "Próxima cobrança"}</p>
+                <p className="font-semibold">
+                  {isTrial && assinaturaAtiva.trial_end 
+                    ? formatarData(assinaturaAtiva.trial_end) 
+                    : formatarData(assinaturaAtiva.data_expiracao)}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {diasRestantes > 0 && !canceladoNoFim && !isTrial && (
+            <p className="mt-3 text-sm opacity-90">
+              ⏰ {diasRestantes} dias restantes até a próxima cobrança.
+            </p>
+          )}
+
+          <button
+            onClick={handleGerenciarAssinatura}
+            disabled={processando}
+            className="mt-4 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2"
+          >
+            <CreditCard className="w-4 h-4" />
+            {processando ? "Processando..." : "Gerenciar Assinatura"}
+          </button>
+          <p className="text-xs opacity-75 mt-3">
+            🔒 Ao clicar em "Gerenciar Assinatura" você será redirecionado para o portal seguro do Stripe.
+          </p>
+        </div>
+
+        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-6">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5" />
+            <p className="text-xs text-blue-700 dark:text-blue-300">
+              {canceladoNoFim
+                ? "Você cancelou sua assinatura, mas continuará tendo acesso até o fim do período já pago."
+                : isTrial
+                ? "Seu período de teste termina em breve. Após o fim, seu acesso será bloqueado caso não assine um plano."
+                : "Se você cancelar sua assinatura, ela continuará ativa até o fim do período já pago."}
+            </p>
           </div>
-        )}
-
-        {diasRestantes > 0 && !canceladoNoFim && !isTrial && (
-          <p className="mt-3 text-sm opacity-90">
-            ⏰ {diasRestantes} dias restantes até a próxima cobrança.
-          </p>
-        )}
-
-        <button
-          onClick={handleGerenciarAssinatura}
-          disabled={processando}
-          className="mt-4 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2"
-        >
-          <CreditCard className="w-4 h-4" />
-          {processando ? "Processando..." : "Gerenciar Assinatura"}
-        </button>
-        <p className="text-xs opacity-75 mt-3">
-          🔒 Ao clicar em "Gerenciar Assinatura" você será redirecionado para o portal seguro do Stripe.
-        </p>
-      </div>
-
-      <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-6">
-        <div className="flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5" />
-          <p className="text-xs text-blue-700 dark:text-blue-300">
-            {canceladoNoFim
-              ? "Você cancelou sua assinatura, mas continuará tendo acesso até o fim do período já pago."
-              : isTrial
-              ? "Seu período de teste termina em breve. Após o fim, seu acesso será bloqueado caso não assine um plano."
-              : "Se você cancelar sua assinatura, ela continuará ativa até o fim do período já pago."}
-          </p>
-        </div>
-      </div>
-
-      {/* 🔥 MOSTRAR OUTROS PLANOS DISPONÍVEIS PARA UPGRADE/DOWNGRADE */}
-      <div className="mt-8">
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-6 mb-4">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Mudar de plano</h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            Você pode trocar de plano a qualquer momento. O valor será ajustado proporcionalmente.
-          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {/* 🔥 MOSTRAR OUTROS PLANOS DISPONÍVEIS PARA UPGRADE/DOWNGRADE */}
+        <div className="mt-8">
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-6 mb-4">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Mudar de plano</h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Você pode trocar de plano a qualquer momento. O valor será ajustado proporcionalmente.
+            </p>
+          </div>
 
-{/* Plano Mensal - só mostra se NÃO for o plano atual */}
-{!isPlanoMensal && (
-  <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
-    <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3">{PLANOS.monthly.nome}</h3>
-    <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">R$ {PLANOS.monthly.preco.toFixed(2)}</p>
-    <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">por mês</p>
-    <ul className="space-y-2 mb-5">
-      {PLANOS.monthly.descricao.map((item, i) => (
-        <li key={i} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-          <Check className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
-          {item}
-        </li>
-      ))}
-    </ul>
-    <button
-      onClick={() => handleGerenciarAssinatura()}  // 🔥 MUDOU AQUI
-      disabled={processando}
-      className="w-full border border-purple-600 text-purple-600 dark:text-purple-400 dark:border-purple-500 py-2 rounded-lg text-xs font-medium hover:bg-purple-50 dark:hover:bg-purple-900/30 transition disabled:opacity-50"
-    >
-      {processando ? "Processando..." : "Trocar para Mensal"}
-    </button>
-  </div>
-)}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Plano Mensal - só mostra se NÃO for o plano atual */}
+            {!isPlanoMensal && (
+              <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3">{PLANOS.monthly.nome}</h3>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">R$ {PLANOS.monthly.preco.toFixed(2)}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">por mês</p>
+                <ul className="space-y-2 mb-5">
+                  {PLANOS.monthly.descricao.map((item, i) => (
+                    <li key={i} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                      <Check className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  onClick={() => handleSwitchPlan(PLANOS.monthly.priceId, assinaturaAtiva.stripe_subscription_id)}
+                  disabled={processando}
+                  className="w-full border border-purple-600 text-purple-600 dark:text-purple-400 dark:border-purple-500 py-2 rounded-lg text-xs font-medium hover:bg-purple-50 dark:hover:bg-purple-900/30 transition disabled:opacity-50"
+                >
+                  {processando ? "Processando..." : "Trocar para Mensal"}
+                </button>
+              </div>
+            )}
 
-{/* Plano Anual - só mostra se NÃO for o plano atual */}
-{!isPlanoAnual && (
-  <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border-2 border-purple-200 dark:border-purple-900 relative">
-    <div className="absolute -top-3 left-4">
-      <span className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-full">
-        RECOMENDADO
-      </span>
-    </div>
-    <div className="flex justify-between items-start mb-3 mt-2">
-      <h3 className="text-base font-semibold text-gray-900 dark:text-white">{PLANOS.yearly.nome}</h3>
-      <span className="bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400 text-[10px] px-2 py-0.5 rounded-full">Economize 15%</span>
-    </div>
-    <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">R$ {PLANOS.yearly.preco.toFixed(2)}</p>
-    <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">por ano (R$ 24,99/mês)</p>
-    <ul className="space-y-2 mb-5">
-      {PLANOS.yearly.descricao.map((item, i) => (
-        <li key={i} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-          <Check className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
-          {item}
-        </li>
-      ))}
-    </ul>
-    <button
-      onClick={() => handleGerenciarAssinatura()}  // 🔥 MUDOU AQUI
-      disabled={processando}
-      className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-2 rounded-lg text-xs font-medium hover:shadow-lg transition disabled:opacity-50"
-    >
-      {processando ? "Processando..." : "Trocar para Anual"}
-    </button>
-  </div>
-)}
+            {/* Plano Anual - só mostra se NÃO for o plano atual */}
+            {!isPlanoAnual && (
+              <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border-2 border-purple-200 dark:border-purple-900 relative">
+                <div className="absolute -top-3 left-4">
+                  <span className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-full">
+                    RECOMENDADO
+                  </span>
+                </div>
+                <div className="flex justify-between items-start mb-3 mt-2">
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-white">{PLANOS.yearly.nome}</h3>
+                  <span className="bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400 text-[10px] px-2 py-0.5 rounded-full">Economize 15%</span>
+                </div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">R$ {PLANOS.yearly.preco.toFixed(2)}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">por ano (R$ 24,99/mês)</p>
+                <ul className="space-y-2 mb-5">
+                  {PLANOS.yearly.descricao.map((item, i) => (
+                    <li key={i} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                      <Check className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  onClick={() => handleSwitchPlan(PLANOS.yearly.priceId, assinaturaAtiva.stripe_subscription_id)}
+                  disabled={processando}
+                  className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-2 rounded-lg text-xs font-medium hover:shadow-lg transition disabled:opacity-50"
+                >
+                  {processando ? "Processando..." : "Trocar para Anual"}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
+
   // =====================================================
   // 2. SEM ASSINATURA ATIVA, MAS EM TRIAL (7 DIAS DA LOJA)
   // =====================================================
@@ -470,7 +499,6 @@ if (assinaturaAtiva && ["active", "trialing"].includes(assinaturaAtiva.status)) 
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Escolha o plano ideal para o seu negócio</p>
         </div>
 
-        {/* 🔥 BANNER DE PERÍODO DE TESTE (TRIAL DA LOJA) */}
         <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-xl p-4 mb-6 text-white">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-2">
@@ -492,7 +520,6 @@ if (assinaturaAtiva && ["active", "trialing"].includes(assinaturaAtiva.status)) 
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {/* Plano Mensal */}
           <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
             <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3">{PLANOS.monthly.nome}</h3>
             <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">R$ {PLANOS.monthly.preco.toFixed(2)}</p>
@@ -517,12 +544,9 @@ if (assinaturaAtiva && ["active", "trialing"].includes(assinaturaAtiva.status)) 
             </button>
           </div>
 
-          {/* Plano Anual */}
           <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border-2 border-purple-200 dark:border-purple-900 relative">
             <div className="absolute -top-3 left-4">
-              <span className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-full">
-                RECOMENDADO
-              </span>
+              <span className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-full">RECOMENDADO</span>
             </div>
             <div className="flex justify-between items-start mb-3 mt-2">
               <h3 className="text-base font-semibold text-gray-900 dark:text-white">{PLANOS.yearly.nome}</h3>
@@ -555,12 +579,8 @@ if (assinaturaAtiva && ["active", "trialing"].includes(assinaturaAtiva.status)) 
           <div className="flex items-start gap-2">
             <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5" />
             <div>
-              <p className="text-xs text-blue-700 dark:text-blue-300 font-medium">
-                Teste grátis de 7 dias
-              </p>
-              <p className="text-xs text-blue-600 dark:text-blue-400">
-                Você será cobrado somente após o fim do período de teste, a menos que cancele antes.
-              </p>
+              <p className="text-xs text-blue-700 dark:text-blue-300 font-medium">Teste grátis de 7 dias</p>
+              <p className="text-xs text-blue-600 dark:text-blue-400">Você será cobrado somente após o fim do período de teste, a menos que cancele antes.</p>
             </div>
           </div>
         </div>
@@ -588,7 +608,6 @@ if (assinaturaAtiva && ["active", "trialing"].includes(assinaturaAtiva.status)) 
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {/* Plano Mensal */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
           <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3">{PLANOS.monthly.nome}</h3>
           <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">R$ {PLANOS.monthly.preco.toFixed(2)}</p>
@@ -613,12 +632,9 @@ if (assinaturaAtiva && ["active", "trialing"].includes(assinaturaAtiva.status)) 
           </button>
         </div>
 
-        {/* Plano Anual */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border-2 border-purple-200 dark:border-purple-900 relative">
           <div className="absolute -top-3 left-4">
-            <span className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-full">
-              RECOMENDADO
-            </span>
+            <span className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-full">RECOMENDADO</span>
           </div>
           <div className="flex justify-between items-start mb-3 mt-2">
             <h3 className="text-base font-semibold text-gray-900 dark:text-white">{PLANOS.yearly.nome}</h3>
@@ -651,12 +667,8 @@ if (assinaturaAtiva && ["active", "trialing"].includes(assinaturaAtiva.status)) 
         <div className="flex items-start gap-2">
           <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5" />
           <div>
-            <p className="text-xs text-blue-700 dark:text-blue-300 font-medium">
-              Teste grátis de 7 dias
-            </p>
-            <p className="text-xs text-blue-600 dark:text-blue-400">
-              Você será cobrado somente após o fim do período de teste, a menos que cancele antes.
-            </p>
+            <p className="text-xs text-blue-700 dark:text-blue-300 font-medium">Teste grátis de 7 dias</p>
+            <p className="text-xs text-blue-600 dark:text-blue-400">Você será cobrado somente após o fim do período de teste, a menos que cancele antes.</p>
           </div>
         </div>
       </div>
