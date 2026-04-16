@@ -274,40 +274,42 @@ export default function Assinatura() {
   };
 
   // 🔥 NOVA FUNÇÃO: Troca de plano via API (cobrança proporcional)
-  const handleSwitchPlan = async (newPriceId: string, oldSubscriptionId: string) => {
-    if (!user) {
-      navigate("/login");
-      return;
+const handleSwitchPlan = async (newPriceId: string, oldSubscriptionId: string) => {
+  if (!user) {
+    navigate("/login");
+    return;
+  }
+
+  setProcessando(true);
+  try {
+    const response = await fetch('/api/switch-plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: user.id,
+        newPriceId,
+        oldSubscriptionId
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Erro ao trocar plano');
     }
 
-    setProcessando(true);
-    try {
-      const response = await fetch('/api/switch-plan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.id,
-          newPriceId,
-          oldSubscriptionId
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro ao trocar plano');
-      }
-
-      alert('Plano alterado com sucesso! A nova assinatura já está ativa.');
-      // Recarregar a página para atualizar os dados
-      window.location.reload();
-    } catch (error: any) {
-      console.error(error);
-      alert(error.message || 'Erro ao processar a troca de plano');
-    } finally {
-      setProcessando(false);
-    }
-  };
+    alert('Plano alterado com sucesso!');
+    
+    // 🔥 RECARREGAR OS DADOS DA ASSINATURA
+    await carregarAssinatura(user.id);
+    
+  } catch (error: any) {
+    console.error(error);
+    alert(error.message || 'Erro ao processar a troca de plano');
+  } finally {
+    setProcessando(false);
+  }
+};
 
   const formatarData = (data: string) =>
     data ? new Date(data).toLocaleDateString("pt-BR") : "N/A"
