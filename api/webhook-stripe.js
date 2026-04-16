@@ -40,6 +40,7 @@ export default async function handler(req, res) {
 
   try {
     switch (event.type) {
+      // 🔥 APENAS ESTE EVENTO SALVA A ASSINATURA
       case 'checkout.session.completed': {
         const session = event.data.object;
         const userId = session.metadata?.userId ? parseInt(session.metadata.userId) : null;
@@ -49,17 +50,11 @@ export default async function handler(req, res) {
         console.log('📦 Dados recebidos:', { userId, subscriptionId, customerId });
 
         if (subscriptionId && userId) {
-          // 🔥 Atualizar stripe_customer_id na tabela usuarios
-          const { error: updateCustomerError } = await supabase
+          // Atualizar stripe_customer_id na tabela usuarios
+          await supabase
             .from('usuarios')
             .update({ stripe_customer_id: customerId })
             .eq('id', userId);
-
-          if (updateCustomerError) {
-            console.error('❌ Erro ao atualizar customer_id:', updateCustomerError);
-          } else {
-            console.log('✅ stripe_customer_id atualizado para usuário:', userId);
-          }
 
           // Aguardar 2 segundos para o Stripe processar completamente
           await new Promise(resolve => setTimeout(resolve, 2000));
