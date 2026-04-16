@@ -49,6 +49,18 @@ export default async function handler(req, res) {
         console.log('📦 Dados recebidos:', { userId, subscriptionId, customerId });
 
         if (subscriptionId && userId) {
+          // 🔥 Atualizar stripe_customer_id na tabela usuarios
+          const { error: updateCustomerError } = await supabase
+            .from('usuarios')
+            .update({ stripe_customer_id: customerId })
+            .eq('id', userId);
+
+          if (updateCustomerError) {
+            console.error('❌ Erro ao atualizar customer_id:', updateCustomerError);
+          } else {
+            console.log('✅ stripe_customer_id atualizado para usuário:', userId);
+          }
+
           // Aguardar 2 segundos para o Stripe processar completamente
           await new Promise(resolve => setTimeout(resolve, 2000));
           
@@ -96,6 +108,8 @@ export default async function handler(req, res) {
 
       case 'customer.subscription.updated': {
         const updatedSub = event.data.object;
+        console.log('🔄 Assinatura atualizada:', updatedSub.id);
+        
         await supabase
           .from('assinaturas')
           .update({
@@ -109,6 +123,8 @@ export default async function handler(req, res) {
 
       case 'customer.subscription.deleted': {
         const deletedSub = event.data.object;
+        console.log('❌ Assinatura cancelada:', deletedSub.id);
+        
         await supabase
           .from('assinaturas')
           .update({ status: 'canceled' })
