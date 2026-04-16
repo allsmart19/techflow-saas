@@ -65,21 +65,22 @@ export default async function handler(req, res) {
       metadata: { userId: userId.toString() }
     });
 
-    // 🔥 AGUARDAR E BUSCAR A ASSINATURA ATUALIZADA
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    const updatedSubscription = await stripe.subscriptions.retrieve(newSubscription.id);
+    // 5. Calcular data de expiração (MESMO MÉTODO DA PRIMEIRA ASSINATURA)
+    const dataInicio = new Date();
+    let dataExpiracao;
+    
+    const isMensal = newPriceId === "price_1TLlGuGhIX9bHHYRIwSV4W4o";
+    const dias = isMensal ? 30 : 365;
+    
+    dataExpiracao = new Date(dataInicio);
+    dataExpiracao.setDate(dataInicio.getDate() + dias);
+    
+    console.log('📅 Data de início:', dataInicio);
+    console.log('📅 Data de expiração calculada:', dataExpiracao);
+    console.log('📅 Plano:', isMensal ? 'Mensal (30 dias)' : 'Anual (365 dias)');
 
-    const dataExpiracao = updatedSubscription.current_period_end 
-      ? new Date(updatedSubscription.current_period_end * 1000)
-      : null;
-
-    console.log('✅ Nova assinatura criada:', newSubscription.id);
-    console.log('📅 Data de expiração:', dataExpiracao);
-
-    // 5. Atualizar Supabase
-    const planName = newPriceId === "price_1TLlGuGhIX9bHHYRIwSV4W4o" 
-      ? "Plano Pro Mensal" 
-      : "Plano Pro Anual";
+    // 6. Atualizar Supabase
+    const planName = isMensal ? "Plano Pro Mensal" : "Plano Pro Anual";
 
     await supabase
       .from('assinaturas')
@@ -90,9 +91,9 @@ export default async function handler(req, res) {
       user_id: userId,
       stripe_subscription_id: newSubscription.id,
       stripe_customer_id: customerId,
-      status: updatedSubscription.status,
+      status: newSubscription.status,
       plano: planName,
-      data_inicio: new Date(),
+      data_inicio: dataInicio,
       data_expiracao: dataExpiracao,
       cancel_at_period_end: false
     });
