@@ -39,7 +39,6 @@ export default async function handler(req, res) {
 
     // Se já existe assinatura ativa, redirecionar para o portal de gerenciamento
     if (assinaturaAtiva) {
-      // Buscar o customer_id do usuário
       const { data: userData } = await supabase
         .from('usuarios')
         .select('stripe_customer_id')
@@ -81,21 +80,7 @@ export default async function handler(req, res) {
       .update({ stripe_customer_id: customer.id })
       .eq('id', userId);
 
-    // 🔎 Verificar se o usuário NUNCA teve nenhuma assinatura (histórico vazio)
-    // Isso inclui: cliente novo, cliente que nunca assinou, cliente que assinou mas expirou
-    const { data: historicoAssinaturas } = await supabase
-      .from('assinaturas')
-      .select('id')
-      .eq('user_id', userId)
-      .limit(1);
-
-    const isNovoUsuario = !historicoAssinaturas || historicoAssinaturas.length === 0;
-
-    // 🔥 Só oferece trial se o usuário NUNCA teve assinatura (cliente novo)
-    // Se já teve assinatura (mesmo que expirada ou em trial e assinando), NÃO oferece trial
-    const ofertarTrial = isNovoUsuario ? 7 : undefined;
-
-    // 🚀 Criar sessão de checkout
+    // 🚀 Criar sessão de checkout - SEM TRIAL (assinatura começa imediatamente)
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customer.id,
@@ -105,7 +90,6 @@ export default async function handler(req, res) {
       metadata: { userId: userId.toString() },
       client_reference_id: userId.toString(),
       subscription_data: {
-        trial_period_days: ofertarTrial,
         metadata: { userId: userId.toString() }
       }
     });
