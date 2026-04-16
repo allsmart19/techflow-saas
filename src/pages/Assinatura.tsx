@@ -241,8 +241,10 @@ const handleAssinar = async (plano: typeof PLANOS.monthly) => {
 const handleGerenciarAssinatura = async () => {
   const customerId = assinaturaAtiva?.stripe_customer_id;
   
+  console.log("🔍 customerId:", customerId);
+  
   if (!customerId) {
-    alert("Nenhum customer ID encontrado.");
+    alert("Nenhum customer ID encontrado. Contate o suporte.");
     return;
   }
 
@@ -256,18 +258,20 @@ const handleGerenciarAssinatura = async () => {
     });
 
     const data = await response.json();
+    console.log("📦 Resposta do create-portal:", data);
 
     if (!response.ok) {
       throw new Error(data.error || 'Erro ao acessar portal');
     }
 
     if (data.url) {
+      console.log("✅ Redirecionando para:", data.url);
       window.location.href = data.url;
     } else {
       throw new Error('URL não retornada');
     }
   } catch (error: any) {
-    console.error(error);
+    console.error("❌ Erro:", error);
     alert(error.message || "Erro ao acessar o portal");
   } finally {
     setProcessando(false);
