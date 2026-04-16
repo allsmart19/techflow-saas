@@ -40,33 +40,38 @@ export default function Ajustes() {
     carregarUsuario()
   }, [])
 
-  async function carregarUsuario() {
-    const userStr = sessionStorage.getItem("user")
-    if (userStr) {
-      const user = JSON.parse(userStr)
-      setUserName(user.username || "admin")
-      setUserRole(user.role || "user")
-      setUserId(user.id)
-      
-      // Buscar loja_id do usuário
-      const { data: userInfo } = await supabase
-        .from("usuarios")
-        .select("loja_id")
-        .eq("id", user.id)
-        .single()
-      
-      const lojaIdValue = userInfo?.loja_id || 1
-      setLojaId(lojaIdValue)
-      
-      if (user.id) {
-        await Promise.all([
-          carregarFornecedores(lojaIdValue),
-          carregarMarcas(lojaIdValue),
-          carregarCondicoes(lojaIdValue)
-        ])
-      }
+async function carregarUsuario() {
+  const userStr = sessionStorage.getItem("user")
+  if (userStr) {
+    const user = JSON.parse(userStr)
+    setUserName(user.username || "admin")
+    setUserRole(user.role || "user")
+    setUserId(user.id)  // este é o UUID do auth.users
+    
+    // 🔥 Buscar o loja_id (INTEGER) do usuário na tabela usuarios
+    const { data: userInfo, error } = await supabase
+      .from("usuarios")
+      .select("loja_id")
+      .eq("id", user.id)  // user.id é o UUID? Na verdade sua tabela usuarios usa id INTEGER
+      .single()
+    
+    if (error) {
+      console.error("Erro ao buscar loja_id:", error)
+      return
+    }
+    
+    const lojaIdValue = userInfo?.loja_id || 1
+    setLojaId(lojaIdValue)  // 🔥 AGORA É INTEGER, NÃO UUID
+    
+    if (user.id) {
+      await Promise.all([
+        carregarFornecedores(lojaIdValue),
+        carregarMarcas(lojaIdValue),
+        carregarCondicoes(lojaIdValue)
+      ])
     }
   }
+}
 
   async function carregarConfiguracoes() {
     const config = await getConfigLoja()
