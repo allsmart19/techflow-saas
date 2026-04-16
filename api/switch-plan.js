@@ -9,7 +9,6 @@ const supabase = createClient(
 );
 
 export default async function handler(req, res) {
-  // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -24,52 +23,56 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // 1. Buscar a assinatura atual no Stripe
+    // 1. Buscar a assinatura atual
     const subscription = await stripe.subscriptions.retrieve(oldSubscriptionId);
     const customerId = subscription.customer;
     const currentPriceId = subscription.items.data[0].price.id;
 
-    // Se já está no plano desejado, não fazer nada
     if (currentPriceId === newPriceId) {
       return res.status(400).json({ error: 'Você já está neste plano' });
     }
 
-    // 2. ATUALIZAR a assinatura existente (NÃO criar uma nova)
-    const updatedSubscription = await stripe.subscriptions.update(oldSubscriptionId, {
-      items: [{
-        id: subscription.items.data[0].id,
-        price: newPriceId,
-      }],
-      proration_behavior: 'always_invoice', // Cobrança proporcional automática
-      cancel_at_period_end: false, // Remove qualquer cancelamento pendente
+    // 2. Criar NOVA assinatura com o novo plano
+    const newSubscription = await stripe.subscriptions.create({
+      customer: customerId,
+      items: [{ price: newPriceId }],
+      proration_behavior: 'always_invoice',
+      trial_from_plan: false,
+      metadata: { userId: userId.toString() }
     });
 
-    // 3. Atualizar o Supabase (apenas UMA assinatura)
+    // 3. CANCELAR IMEDIATAMENTE a assinatura antiga (NÃO no fim do período)
+    await stripe.subscriptions.cancel(oldSubscriptionId, {
+      cancellation_details: { comment: 'Troca de plano' }
+    });
+
+    // 4. Atualizar Supabase: marcar antiga como canceled
+    await supabase
+      .from('assinaturas')
+      .update({ status: 'canceled' })
+      .eq('stripe_subscription_id', oldSubscriptionId);
+
+    // 5. Inserir nova assinatura no Supabase
     const planName = newPriceId === "price_1TLlGuGhIX9bHHYRIwSV4W4o" 
       ? "Plano Pro Mensal" 
       : "Plano Pro Anual";
 
-    const { error } = await supabase
-      .from('assinaturas')
-      .update({
-        status: updatedSubscription.status,
-        plano: planName,
-        data_expiracao: new Date(updatedSubscription.current_period_end * 1000),
-        cancel_at_period_end: false,
-      })
-      .eq('stripe_subscription_id', oldSubscriptionId);
+    const { error } = await supabase.from('assinaturas').insert({
+      user_id: userId,
+      stripe_subscription_id: newSubscription.id,
+      stripe_customer_id: customerId,
+      status: newSubscription.status,
+      plano: planName,
+      data_inicio: new Date(),
+      data_expiracao: new Date(newSubscription.current_period_end * 1000),
+      cancel_at_period_end: false
+    });
 
     if (error) throw error;
 
-    return res.status(200).json({ success: true, message: 'Plano alterado com sucesso' });
+    return res.status(200).json({ success: true, newSubscriptionId: newSubscription.id });
   } catch (error) {
     console.error('❌ Erro ao trocar plano:', error);
-    
-    // Tratamento específico para erro de índice duplicado
-    if (error.code === '23505') {
-      return res.status(400).json({ error: 'Já existe uma assinatura ativa. Aguarde o processamento.' });
-    }
-    
     return res.status(500).json({ error: error.message });
   }
 }
