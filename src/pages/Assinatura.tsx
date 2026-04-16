@@ -395,60 +395,61 @@ if (assinaturaAtiva && ["active", "trialing"].includes(assinaturaAtiva.status)) 
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {/* Plano Mensal - só mostra se NÃO for o plano atual */}
-          {!isPlanoMensal && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3">{PLANOS.monthly.nome}</h3>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">R$ {PLANOS.monthly.preco.toFixed(2)}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">por mês</p>
-              <ul className="space-y-2 mb-5">
-                {PLANOS.monthly.descricao.map((item, i) => (
-                  <li key={i} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                    <Check className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              <button
-              onClick={() => handleGerenciarAssinatura()}
-              disabled={processando}
-              className="..."
-            >
-              {processando ? "Processando..." : "Trocar para Mensal"}
-            </button>
-            </div>
-          )}
+{/* Plano Mensal - só mostra se NÃO for o plano atual */}
+{!isPlanoMensal && (
+  <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+    <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3">{PLANOS.monthly.nome}</h3>
+    <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">R$ {PLANOS.monthly.preco.toFixed(2)}</p>
+    <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">por mês</p>
+    <ul className="space-y-2 mb-5">
+      {PLANOS.monthly.descricao.map((item, i) => (
+        <li key={i} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+          <Check className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+          {item}
+        </li>
+      ))}
+    </ul>
+    <button
+      onClick={() => handleAssinar(PLANOS.monthly)}
+      disabled={processando}
+      className="w-full border border-purple-600 text-purple-600 dark:text-purple-400 dark:border-purple-500 py-2 rounded-lg text-xs font-medium hover:bg-purple-50 dark:hover:bg-purple-900/30 transition disabled:opacity-50"
+    >
+      {processando ? "Processando..." : "Trocar para Mensal"}
+    </button>
+  </div>
+)}
 
-          {/* Plano Anual - só mostra se NÃO for o plano atual */}
-          {!isPlanoAnual && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border-2 border-purple-200 dark:border-purple-900 relative">
-              <div className="absolute -top-3 left-4">
-                <span className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-full">
-                  RECOMENDADO
-                </span>
-              </div>
-              <div className="flex justify-between items-start mb-3 mt-2">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white">{PLANOS.yearly.nome}</h3>
-                <span className="bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400 text-[10px] px-2 py-0.5 rounded-full">Economize 15%</span>
-              </div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">R$ {PLANOS.yearly.preco.toFixed(2)}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">por ano (R$ 24,99/mês)</p>
-              <ul className="space-y-2 mb-5">
-                {PLANOS.yearly.descricao.map((item, i) => (
-                  <li key={i} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                    <Check className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              <button
-                onClick={() => handleGerenciarAssinatura()}
-                disabled={processando}
-                className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-2 rounded-lg text-xs font-medium hover:shadow-lg transition disabled:opacity-50"
-              >
-                {processando ? "Processando..." : "Trocar para Anual"}
-              </button>
-            </div>
-          )}
+{/* Plano Anual - só mostra se NÃO for o plano atual */}
+{!isPlanoAnual && (
+  <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border-2 border-purple-200 dark:border-purple-900 relative">
+    <div className="absolute -top-3 left-4">
+      <span className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[10px] px-2 py-0.5 rounded-full">
+        RECOMENDADO
+      </span>
+    </div>
+    <div className="flex justify-between items-start mb-3 mt-2">
+      <h3 className="text-base font-semibold text-gray-900 dark:text-white">{PLANOS.yearly.nome}</h3>
+      <span className="bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400 text-[10px] px-2 py-0.5 rounded-full">Economize 15%</span>
+    </div>
+    <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">R$ {PLANOS.yearly.preco.toFixed(2)}</p>
+    <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">por ano (R$ 24,99/mês)</p>
+    <ul className="space-y-2 mb-5">
+      {PLANOS.yearly.descricao.map((item, i) => (
+        <li key={i} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+          <Check className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+          {item}
+        </li>
+      ))}
+    </ul>
+    <button
+      onClick={() => handleAssinar(PLANOS.yearly)}
+      disabled={processando}
+      className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-2 rounded-lg text-xs font-medium hover:shadow-lg transition disabled:opacity-50"
+    >
+      {processando ? "Processando..." : "Trocar para Anual"}
+    </button>
+  </div>
+)}
         </div>
       </div>
     </div>
