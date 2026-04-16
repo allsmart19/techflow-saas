@@ -25,62 +25,51 @@ export default async function handler(req, res) {
     }
 
     // 1. Buscar a assinatura atual no Stripe
-    const currentSubscription = await stripe.subscriptions.retrieve(oldSubscriptionId);
-    const customerId = currentSubscription.customer;
+    const subscription = await stripe.subscriptions.retrieve(oldSubscriptionId);
+    const customerId = subscription.customer;
+    const currentPriceId = subscription.items.data[0].price.id;
 
-    // 2. Obter o método de pagamento padrão da assinatura atual
-    const paymentMethodId = currentSubscription.default_payment_method;
-    if (!paymentMethodId) {
-      return res.status(400).json({ error: 'Método de pagamento não encontrado. O cliente precisa ter um cartão associado.' });
+    // Se já está no plano desejado, não fazer nada
+    if (currentPriceId === newPriceId) {
+      return res.status(400).json({ error: 'Você já está neste plano' });
     }
 
-    // 3. (Opcional) Definir este método como padrão no cliente (evita problemas futuros)
-    await stripe.customers.update(customerId, {
-      invoice_settings: { default_payment_method: paymentMethodId },
+    // 2. ATUALIZAR a assinatura existente (NÃO criar uma nova)
+    const updatedSubscription = await stripe.subscriptions.update(oldSubscriptionId, {
+      items: [{
+        id: subscription.items.data[0].id,
+        price: newPriceId,
+      }],
+      proration_behavior: 'always_invoice', // Cobrança proporcional automática
+      cancel_at_period_end: false, // Remove qualquer cancelamento pendente
     });
 
-    // 4. Criar nova assinatura com o novo plano, usando o mesmo método de pagamento
-    const newSubscription = await stripe.subscriptions.create({
-      customer: customerId,
-      items: [{ price: newPriceId }],
-      default_payment_method: paymentMethodId, // 🔥 ESSA É A CORREÇÃO PRINCIPAL
-      proration_behavior: 'always_invoice',     // cobrança proporcional
-      trial_from_plan: false,
-      metadata: { userId: userId.toString() }
-    });
-
-    // 5. Cancelar a assinatura antiga (ao final do período atual)
-    await stripe.subscriptions.update(oldSubscriptionId, {
-      cancel_at_period_end: true
-    });
-
-    // 6. Atualizar o Supabase: marcar a antiga como cancelada
-    await supabase
-      .from('assinaturas')
-      .update({ status: 'canceled' })
-      .eq('stripe_subscription_id', oldSubscriptionId);
-
-    // 7. Inserir a nova assinatura no Supabase
+    // 3. Atualizar o Supabase (apenas UMA assinatura)
     const planName = newPriceId === "price_1TLlGuGhIX9bHHYRIwSV4W4o" 
       ? "Plano Pro Mensal" 
       : "Plano Pro Anual";
 
-    const { error } = await supabase.from('assinaturas').insert({
-      user_id: userId,
-      stripe_subscription_id: newSubscription.id,
-      stripe_customer_id: customerId,
-      status: newSubscription.status,
-      plano: planName,
-      data_inicio: new Date(),
-      data_expiracao: new Date(newSubscription.current_period_end * 1000),
-      cancel_at_period_end: false
-    });
+    const { error } = await supabase
+      .from('assinaturas')
+      .update({
+        status: updatedSubscription.status,
+        plano: planName,
+        data_expiracao: new Date(updatedSubscription.current_period_end * 1000),
+        cancel_at_period_end: false,
+      })
+      .eq('stripe_subscription_id', oldSubscriptionId);
 
     if (error) throw error;
 
-    return res.status(200).json({ success: true, newSubscriptionId: newSubscription.id });
+    return res.status(200).json({ success: true, message: 'Plano alterado com sucesso' });
   } catch (error) {
     console.error('❌ Erro ao trocar plano:', error);
+    
+    // Tratamento específico para erro de índice duplicado
+    if (error.code === '23505') {
+      return res.status(400).json({ error: 'Já existe uma assinatura ativa. Aguarde o processamento.' });
+    }
+    
     return res.status(500).json({ error: error.message });
   }
 }
