@@ -101,36 +101,33 @@ export default async function handler(req, res) {
         break;
       }
 
-      case 'customer.subscription.updated': {
-        const updatedSub = event.data.object;
-        console.log('🔄 Assinatura atualizada:', updatedSub.id);
-        console.log('📅 current_period_end (timestamp):', updatedSub.current_period_end);
-        
-        const novaDataExpiracao = updatedSub.current_period_end 
-          ? new Date(updatedSub.current_period_end * 1000) 
-          : null;
-        
-        console.log('📅 Nova data_expiracao calculada:', novaDataExpiracao);
-        console.log('📅 Status:', updatedSub.status);
-        console.log('📅 cancel_at_period_end:', updatedSub.cancel_at_period_end);
-        
-        const { error } = await supabase
-          .from('assinaturas')
-          .update({
-            status: updatedSub.status,
-            data_expiracao: novaDataExpiracao,
-            trial_end: updatedSub.trial_end ? new Date(updatedSub.trial_end * 1000) : null,
-            cancel_at_period_end: updatedSub.cancel_at_period_end,
-          })
-          .eq('stripe_subscription_id', updatedSub.id);
-
-        if (error) {
-          console.error('❌ Erro ao atualizar assinatura:', error);
-        } else {
-          console.log('✅ Assinatura atualizada no Supabase com data_expiracao:', novaDataExpiracao);
-        }
-        break;
-      }
+case 'customer.subscription.updated': {
+  const updatedSub = event.data.object;
+  console.log('🔄 Assinatura atualizada:', updatedSub.id);
+  console.log('📅 current_period_end:', updatedSub.current_period_end);
+  
+  const novaDataExpiracao = updatedSub.current_period_end 
+    ? new Date(updatedSub.current_period_end * 1000) 
+    : null;
+  
+  if (novaDataExpiracao) {
+    const { error } = await supabase
+      .from('assinaturas')
+      .update({
+        status: updatedSub.status,
+        data_expiracao: novaDataExpiracao,
+        cancel_at_period_end: updatedSub.cancel_at_period_end,
+      })
+      .eq('stripe_subscription_id', updatedSub.id);
+    
+    if (error) {
+      console.error('❌ Erro ao atualizar assinatura:', error);
+    } else {
+      console.log('✅ Assinatura atualizada com data_expiracao:', novaDataExpiracao);
+    }
+  }
+  break;
+}
 
       case 'customer.subscription.deleted': {
         const deletedSub = event.data.object;

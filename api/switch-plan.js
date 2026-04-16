@@ -26,32 +26,56 @@ export default async function handler(req, res) {
     // 1. Buscar a assinatura atual
     const oldSubscription = await stripe.subscriptions.retrieve(oldSubscriptionId);
     const customerId = oldSubscription.customer;
+
+    // 2. Buscar o cliente no Stripe para obter o método de pagamento
+    const customer = await stripe.customers.retrieve(customerId);
     
-    // 2. Obter o método de pagamento padrão da assinatura atual
-    const paymentMethodId = oldSubscription.default_payment_method;
+    // 3. Tentar obter o método de pagamento de várias fontes
+    let paymentMethodId = oldSubscription.default_payment_method;
     
+    if (!paymentMethodId && customer.invoice_settings?.default_payment_method) {
+      paymentMethodId = customer.invoice_settings.default_payment_method;
+    }
+    
+    if (!paymentMethodId) {
+      // Buscar o método de pagamento mais recente do cliente
+      const paymentMethods = await stripe.paymentMethods.list({
+        customer: customerId,
+        type: 'card',
+        limit: 1
+      });
+      
+      if (paymentMethods.data.length > 0) {
+        paymentMethodId = paymentMethods.data[0].id;
+        // Definir como padrão no cliente
+        await stripe.customers.update(customerId, {
+          invoice_settings: { default_payment_method: paymentMethodId }
+        });
+      }
+    }
+
     if (!paymentMethodId) {
       return res.status(400).json({ 
         error: 'Método de pagamento não encontrado. O cliente precisa ter um cartão associado.' 
       });
     }
 
-    // 3. CANCELAR IMEDIATAMENTE a assinatura antiga
-    await stripe.subscriptions.cancel(oldSubscriptionId, {
-      cancellation_details: { comment: 'Troca de plano' }
-    });
-
-    // 4. Criar NOVA assinatura com o novo plano e o mesmo método de pagamento
+    // 4. Criar NOVA assinatura com o novo plano
     const newSubscription = await stripe.subscriptions.create({
       customer: customerId,
       items: [{ price: newPriceId }],
-      default_payment_method: paymentMethodId, // 🔥 ESSE É O SEGREDO
+      default_payment_method: paymentMethodId,
       proration_behavior: 'always_invoice',
       trial_from_plan: false,
       metadata: { userId: userId.toString() }
     });
 
-    // 5. Atualizar Supabase
+    // 5. Cancelar a assinatura antiga
+    await stripe.subscriptions.cancel(oldSubscriptionId, {
+      cancellation_details: { comment: 'Troca de plano' }
+    });
+
+    // 6. Atualizar Supabase
     const planName = newPriceId === "price_1TLlGuGhIX9bHHYRIwSV4W4o" 
       ? "Plano Pro Mensal" 
       : "Plano Pro Anual";

@@ -299,6 +299,8 @@ const handleSwitchPlan = async (newPriceId: string, oldSubscriptionId: string) =
     }
 
     alert('Plano alterado com sucesso!');
+        await carregarAssinatura(user.id);
+    window.location.reload();
     
     // 🔥 RECARREGAR OS DADOS DA ASSINATURA
     await carregarAssinatura(user.id);
