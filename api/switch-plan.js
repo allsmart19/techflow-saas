@@ -27,27 +27,17 @@ export default async function handler(req, res) {
     const oldSubscription = await stripe.subscriptions.retrieve(oldSubscriptionId);
     const customerId = oldSubscription.customer;
 
-    // 2. Buscar o cliente no Stripe para obter o método de pagamento
-    const customer = await stripe.customers.retrieve(customerId);
-    
-    // 3. Tentar obter o método de pagamento de várias fontes
+    // 2. Buscar método de pagamento
     let paymentMethodId = oldSubscription.default_payment_method;
     
-    if (!paymentMethodId && customer.invoice_settings?.default_payment_method) {
-      paymentMethodId = customer.invoice_settings.default_payment_method;
-    }
-    
     if (!paymentMethodId) {
-      // Buscar o método de pagamento mais recente do cliente
       const paymentMethods = await stripe.paymentMethods.list({
         customer: customerId,
         type: 'card',
         limit: 1
       });
-      
       if (paymentMethods.data.length > 0) {
         paymentMethodId = paymentMethods.data[0].id;
-        // Definir como padrão no cliente
         await stripe.customers.update(customerId, {
           invoice_settings: { default_payment_method: paymentMethodId }
         });
@@ -56,11 +46,16 @@ export default async function handler(req, res) {
 
     if (!paymentMethodId) {
       return res.status(400).json({ 
-        error: 'Método de pagamento não encontrado. O cliente precisa ter um cartão associado.' 
+        error: 'Método de pagamento não encontrado.' 
       });
     }
 
-    // 4. Criar NOVA assinatura com o novo plano
+    // 3. Cancelar assinatura antiga
+    await stripe.subscriptions.cancel(oldSubscriptionId, {
+      cancellation_details: { comment: 'Troca de plano' }
+    });
+
+    // 4. Criar nova assinatura
     const newSubscription = await stripe.subscriptions.create({
       customer: customerId,
       items: [{ price: newPriceId }],
@@ -70,12 +65,18 @@ export default async function handler(req, res) {
       metadata: { userId: userId.toString() }
     });
 
-    // 5. Cancelar a assinatura antiga
-    await stripe.subscriptions.cancel(oldSubscriptionId, {
-      cancellation_details: { comment: 'Troca de plano' }
-    });
+    // 🔥 AGUARDAR E BUSCAR A ASSINATURA ATUALIZADA
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    const updatedSubscription = await stripe.subscriptions.retrieve(newSubscription.id);
 
-    // 6. Atualizar Supabase
+    const dataExpiracao = updatedSubscription.current_period_end 
+      ? new Date(updatedSubscription.current_period_end * 1000)
+      : null;
+
+    console.log('✅ Nova assinatura criada:', newSubscription.id);
+    console.log('📅 Data de expiração:', dataExpiracao);
+
+    // 5. Atualizar Supabase
     const planName = newPriceId === "price_1TLlGuGhIX9bHHYRIwSV4W4o" 
       ? "Plano Pro Mensal" 
       : "Plano Pro Anual";
@@ -89,10 +90,10 @@ export default async function handler(req, res) {
       user_id: userId,
       stripe_subscription_id: newSubscription.id,
       stripe_customer_id: customerId,
-      status: newSubscription.status,
+      status: updatedSubscription.status,
       plano: planName,
       data_inicio: new Date(),
-      data_expiracao: new Date(newSubscription.current_period_end * 1000),
+      data_expiracao: dataExpiracao,
       cancel_at_period_end: false
     });
 
