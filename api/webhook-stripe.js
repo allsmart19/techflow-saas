@@ -9,9 +9,8 @@ export const config = {
   },
 };
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2024-11-20.dahlia',
-});
+// 🔥 Remover a versão fixa para evitar incompatibilidades
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -98,10 +97,7 @@ export default async function handler(req, res) {
         const newSubscriptionId = newSub.id;
         const newCustomerId = newSub.customer;
 
-        console.log('🆕 Assinatura criada:', { newUserId, newSubscriptionId, newCustomerId });
-
         if (newSubscriptionId && newUserId) {
-          // Mapeamento dos priceIds para nomes amigáveis
           const PLAN_NAMES = {
             "price_1TLlGuGhIX9bHHYRIwSV4W4o": "Plano Pro Mensal",
             "price_1TLlJqGhIX9bHHYRPHdBYv09": "Plano Pro Anual"
@@ -112,10 +108,7 @@ export default async function handler(req, res) {
           const currentPeriodEnd = new Date(newSub.current_period_end * 1000);
           const trialEnd = newSub.trial_end ? new Date(newSub.trial_end * 1000) : null;
 
-          console.log('📅 Nova assinatura - data_expiracao:', currentPeriodEnd);
-          console.log('📅 Novo plano:', planName);
-
-          const { error } = await supabase.from('assinaturas').upsert({
+          await supabase.from('assinaturas').upsert({
             user_id: newUserId,
             stripe_subscription_id: newSubscriptionId,
             stripe_customer_id: newCustomerId,
@@ -126,20 +119,12 @@ export default async function handler(req, res) {
             trial_end: trialEnd,
             cancel_at_period_end: newSub.cancel_at_period_end,
           }, { onConflict: 'stripe_subscription_id' });
-
-          if (error) {
-            console.error('❌ Erro detalhado do Supabase:', error);
-          } else {
-            console.log('✅ Nova assinatura salva com sucesso!');
-          }
         }
         break;
       }
 
       case 'customer.subscription.updated': {
         const updatedSub = event.data.object;
-        console.log('🔄 Assinatura atualizada:', updatedSub.id);
-        
         await supabase
           .from('assinaturas')
           .update({
@@ -154,8 +139,6 @@ export default async function handler(req, res) {
 
       case 'customer.subscription.deleted': {
         const deletedSub = event.data.object;
-        console.log('❌ Assinatura cancelada:', deletedSub.id);
-        
         await supabase
           .from('assinaturas')
           .update({ status: 'canceled' })
