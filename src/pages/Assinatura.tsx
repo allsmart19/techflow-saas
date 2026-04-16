@@ -260,6 +260,12 @@ if (assinaturaAtiva && ["active", "trialing"].includes(assinaturaAtiva.status)) 
   const diasRestantes = getDiasRestantes(assinaturaAtiva.data_expiracao);
   const canceladoNoFim = assinaturaAtiva.cancel_at_period_end;
   
+    console.log("📅 Assinatura ativa:", {
+    plano: assinaturaAtiva.plano,
+    data_inicio: assinaturaAtiva.data_inicio,
+    data_expiracao: assinaturaAtiva.data_expiracao
+  });
+
   // Identificar qual plano o cliente tem atualmente
   const planoAtual = assinaturaAtiva.plano || "";
   const isPlanoMensal = planoAtual.includes("Mensal") || planoAtual === "Plano Pro Mensal";
