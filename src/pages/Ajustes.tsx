@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react"
 import { Save, Trash2, Upload, Building, Plus, Edit, X, Package, Truck, Tag, Check, AlertCircle, ChevronDown, ChevronUp, User } from "lucide-react"
 import { getConfigLoja, updateConfigLoja } from "../services/configService"
-import { supabase } from "../lib/supabase"
 
 export default function Ajustes() {
   // Estado da logo e nome da loja
@@ -13,8 +12,7 @@ export default function Ajustes() {
   const [userName, setUserName] = useState<string>("admin")
   const [userRole, setUserRole] = useState<string>("user")
   const [saving, setSaving] = useState(false)
-  const [userId, setUserId] = useState<number | null>(null)
-  const [lojaId, setLojaId] = useState<number | null>(null)
+  const [lojaId, setLojaId] = useState<number>(1)
 
   // Estado para controlar seções expandidas
   const [secaoAberta, setSecaoAberta] = useState<string>("fornecedores")
@@ -29,49 +27,16 @@ export default function Ajustes() {
   const [novaMarca, setNovaMarca] = useState<string>("")
   const [editandoMarca, setEditandoMarca] = useState<any>(null)
 
-  // Estado para condições (tabela: condicoes)
+  // Estado para condições
   const [condicoes, setCondicoes] = useState<any[]>([])
   const [novaCondicao, setNovaCondicao] = useState<string>("")
   const [editandoCondicao, setEditandoCondicao] = useState<any>(null)
 
-  // Carregar configurações da loja e dados do usuário
+  // Carregar configurações do Supabase e dados locais
   useEffect(() => {
     carregarConfiguracoes()
-    carregarUsuario()
+    carregarDadosLocal()
   }, [])
-
-async function carregarUsuario() {
-  const userStr = sessionStorage.getItem("user")
-  if (userStr) {
-    const user = JSON.parse(userStr)
-    setUserName(user.username || "admin")
-    setUserRole(user.role || "user")
-    setUserId(user.id)  // este é o UUID do auth.users
-    
-    // 🔥 Buscar o loja_id (INTEGER) do usuário na tabela usuarios
-    const { data: userInfo, error } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", user.id)  // user.id é o UUID? Na verdade sua tabela usuarios usa id INTEGER
-      .single()
-    
-    if (error) {
-      console.error("Erro ao buscar loja_id:", error)
-      return
-    }
-    
-    const lojaIdValue = userInfo?.loja_id || 1
-    setLojaId(lojaIdValue)  // 🔥 AGORA É INTEGER, NÃO UUID
-    
-    if (user.id) {
-      await Promise.all([
-        carregarFornecedores(lojaIdValue),
-        carregarMarcas(lojaIdValue),
-        carregarCondicoes(lojaIdValue)
-      ])
-    }
-  }
-}
 
   async function carregarConfiguracoes() {
     const config = await getConfigLoja()
@@ -83,267 +48,63 @@ async function carregarUsuario() {
     }
   }
 
-  // ========== FORNECEDORES ==========
-  async function carregarFornecedores(lojaIdValue: number) {
-    const { data, error } = await supabase
-      .from('fornecedores')
-      .select('*')
-      .eq('loja_id', lojaIdValue)
-      .order('nome')
-    if (!error && data) setFornecedores(data)
-  }
-
-  async function adicionarFornecedor() {
-    if (!novoFornecedor.trim() || !lojaId) return
-    
-    const { error } = await supabase
-      .from('fornecedores')
-      .insert([{ nome: novoFornecedor.toUpperCase(), loja_id: lojaId }])
-    if (error) {
-      console.error("Erro ao adicionar fornecedor:", error)
-      setMensagem({ tipo: "error", texto: "Erro ao adicionar fornecedor" })
-    } else {
-      setNovoFornecedor("")
-      await carregarFornecedores(lojaId)
-      setMensagem({ tipo: "success", texto: "Fornecedor adicionado!" })
+  function carregarDadosLocal() {
+    const savedUser = sessionStorage.getItem("user")
+    if (savedUser) {
+      const user = JSON.parse(savedUser)
+      setUserName(user.username || "admin")
+      setUserRole(user.role || "user")
+      
+      // 🔥 Buscar loja_id do usuário
+      const lojaIdValue = user.loja_id || 1
+      setLojaId(lojaIdValue)
+      
+      // Carregar fornecedores do sessionStorage usando lojaId
+      const savedFornecedores = sessionStorage.getItem(`fornecedores_${lojaIdValue}`)
+      if (savedFornecedores) {
+        setFornecedores(JSON.parse(savedFornecedores))
+      } else {
+        const defaultFornecedores = [
+          { id: 1, nome: "NEW STORE" },
+          { id: 2, nome: "NOVA PEÇAS" },
+          { id: 3, nome: "FLORITEC" },
+          { id: 4, nome: "VITOR CAMELÃO" }
+        ]
+        setFornecedores(defaultFornecedores)
+        sessionStorage.setItem(`fornecedores_${lojaIdValue}`, JSON.stringify(defaultFornecedores))
+      }
+      
+      // Carregar marcas do sessionStorage usando lojaId
+      const savedMarcas = sessionStorage.getItem(`marcas_${lojaIdValue}`)
+      if (savedMarcas) {
+        setMarcas(JSON.parse(savedMarcas))
+      } else {
+        const defaultMarcas = [
+          { id: 1, nome: "SAMSUNG" }, { id: 2, nome: "APPLE" },
+          { id: 3, nome: "MOTOROLA" }, { id: 4, nome: "XIAOMI" },
+          { id: 5, nome: "LG" }, { id: 6, nome: "ASUS" }, { id: 7, nome: "INFINIX" }
+        ]
+        setMarcas(defaultMarcas)
+        sessionStorage.setItem(`marcas_${lojaIdValue}`, JSON.stringify(defaultMarcas))
+      }
+      
+      // Carregar condições do sessionStorage usando lojaId
+      const savedCondicoes = sessionStorage.getItem(`condicoes_${lojaIdValue}`)
+      if (savedCondicoes) {
+        setCondicoes(JSON.parse(savedCondicoes))
+      } else {
+        const defaultCondicoes = [
+          { id: 1, nome: "CONSERTO" }, { id: 2, nome: "GARANTIA" },
+          { id: 3, nome: "LOJA" }, { id: 4, nome: "DEVOLUÇÃO" },
+          { id: 5, nome: "DEVOLUÇÃO PAGA" }, { id: 6, nome: "QUEBRADA" }
+        ]
+        setCondicoes(defaultCondicoes)
+        sessionStorage.setItem(`condicoes_${lojaIdValue}`, JSON.stringify(defaultCondicoes))
+      }
     }
-    setTimeout(() => setMensagem(null), 3000)
   }
 
-  async function salvarEdicaoFornecedor() {
-    if (!editandoFornecedor || !novoFornecedor.trim() || !lojaId) return
-    const { error } = await supabase
-      .from('fornecedores')
-      .update({ nome: novoFornecedor.toUpperCase() })
-      .eq('id', editandoFornecedor.id)
-      .eq('loja_id', lojaId)
-    if (error) {
-      setMensagem({ tipo: "error", texto: "Erro ao atualizar fornecedor" })
-    } else {
-      setEditandoFornecedor(null)
-      setNovoFornecedor("")
-      await carregarFornecedores(lojaId)
-      setMensagem({ tipo: "success", texto: "Fornecedor atualizado!" })
-    }
-    setTimeout(() => setMensagem(null), 3000)
-  }
-
-  async function excluirFornecedor(id: number) {
-    if (!confirm("Tem certeza que deseja excluir este fornecedor?")) return
-    if (!lojaId) return
-    
-    const { error } = await supabase
-      .from('fornecedores')
-      .delete()
-      .eq('id', id)
-      .eq('loja_id', lojaId)
-    if (error) {
-      setMensagem({ tipo: "error", texto: "Erro ao excluir fornecedor" })
-    } else {
-      await carregarFornecedores(lojaId)
-      setMensagem({ tipo: "success", texto: "Fornecedor excluído!" })
-    }
-    setTimeout(() => setMensagem(null), 3000)
-  }
-
-  const cancelarEdicaoFornecedor = () => {
-    setEditandoFornecedor(null)
-    setNovoFornecedor("")
-  }
-
-  // ========== MARCAS ==========
-  async function carregarMarcas(lojaIdValue: number) {
-    const { data, error } = await supabase
-      .from('marcas')
-      .select('*')
-      .eq('loja_id', lojaIdValue)
-      .order('nome')
-    if (!error && data) setMarcas(data)
-  }
-
-  async function adicionarMarca() {
-    if (!novaMarca.trim() || !lojaId) return
-    
-    const { error } = await supabase
-      .from('marcas')
-      .insert([{ nome: novaMarca.toUpperCase(), loja_id: lojaId }])
-    if (error) {
-      console.error("Erro ao adicionar marca:", error)
-      setMensagem({ tipo: "error", texto: "Erro ao adicionar marca" })
-    } else {
-      setNovaMarca("")
-      await carregarMarcas(lojaId)
-      setMensagem({ tipo: "success", texto: "Marca adicionada!" })
-    }
-    setTimeout(() => setMensagem(null), 3000)
-  }
-
-  async function salvarEdicaoMarca() {
-    if (!editandoMarca || !novaMarca.trim() || !lojaId) return
-    const { error } = await supabase
-      .from('marcas')
-      .update({ nome: novaMarca.toUpperCase() })
-      .eq('id', editandoMarca.id)
-      .eq('loja_id', lojaId)
-    if (error) {
-      setMensagem({ tipo: "error", texto: "Erro ao atualizar marca" })
-    } else {
-      setEditandoMarca(null)
-      setNovaMarca("")
-      await carregarMarcas(lojaId)
-      setMensagem({ tipo: "success", texto: "Marca atualizada!" })
-    }
-    setTimeout(() => setMensagem(null), 3000)
-  }
-
-  async function excluirMarca(id: number) {
-    if (!confirm("Tem certeza que deseja excluir esta marca?")) return
-    if (!lojaId) return
-    
-    const { error } = await supabase
-      .from('marcas')
-      .delete()
-      .eq('id', id)
-      .eq('loja_id', lojaId)
-    if (error) {
-      setMensagem({ tipo: "error", texto: "Erro ao excluir marca" })
-    } else {
-      await carregarMarcas(lojaId)
-      setMensagem({ tipo: "success", texto: "Marca excluída!" })
-    }
-    setTimeout(() => setMensagem(null), 3000)
-  }
-
-  const cancelarEdicaoMarca = () => {
-    setEditandoMarca(null)
-    setNovaMarca("")
-  }
-
-  // ========== CONDIÇÕES ========== (tabela: condicoes)
-  async function carregarCondicoes(lojaIdValue: number) {
-    const { data, error } = await supabase
-      .from('condicoes')
-      .select('*')
-      .eq('loja_id', lojaIdValue)
-      .order('nome')
-    if (!error && data) setCondicoes(data)
-  }
-
-  async function adicionarCondicao() {
-    if (!novaCondicao.trim() || !lojaId) return
-    
-    const { error } = await supabase
-      .from('condicoes')
-      .insert([{ nome: novaCondicao.toUpperCase(), loja_id: lojaId }])
-    if (error) {
-      console.error("Erro ao adicionar condição:", error)
-      setMensagem({ tipo: "error", texto: "Erro ao adicionar condição" })
-    } else {
-      setNovaCondicao("")
-      await carregarCondicoes(lojaId)
-      setMensagem({ tipo: "success", texto: "Condição adicionada!" })
-    }
-    setTimeout(() => setMensagem(null), 3000)
-  }
-
-  async function salvarEdicaoCondicao() {
-    if (!editandoCondicao || !novaCondicao.trim() || !lojaId) return
-    const { error } = await supabase
-      .from('condicoes')
-      .update({ nome: novaCondicao.toUpperCase() })
-      .eq('id', editandoCondicao.id)
-      .eq('loja_id', lojaId)
-    if (error) {
-      setMensagem({ tipo: "error", texto: "Erro ao atualizar condição" })
-    } else {
-      setEditandoCondicao(null)
-      setNovaCondicao("")
-      await carregarCondicoes(lojaId)
-      setMensagem({ tipo: "success", texto: "Condição atualizada!" })
-    }
-    setTimeout(() => setMensagem(null), 3000)
-  }
-
-  async function excluirCondicao(id: number) {
-    if (!confirm("Tem certeza que deseja excluir esta condição?")) return
-    if (!lojaId) return
-    
-    const { error } = await supabase
-      .from('condicoes')
-      .delete()
-      .eq('id', id)
-      .eq('loja_id', lojaId)
-    if (error) {
-      setMensagem({ tipo: "error", texto: "Erro ao excluir condição" })
-    } else {
-      await carregarCondicoes(lojaId)
-      setMensagem({ tipo: "success", texto: "Condição excluída!" })
-    }
-    setTimeout(() => setMensagem(null), 3000)
-  }
-
-  const cancelarEdicaoCondicao = () => {
-    setEditandoCondicao(null)
-    setNovaCondicao("")
-  }
-
-  // ========== RESETAR PADRÃO ==========
-  const resetarPadrao = async () => {
-    if (!confirm("Isso irá restaurar todas as configurações padrão. Continuar?")) return
-    if (!lojaId) return
-    setSaving(true)
-
-    // Atualizar configurações da loja
-    await updateConfigLoja("Sua Loja", null)
-    setPreviewLogo(null)
-    setLogoUrl(null)
-    setNomeLojaTemp("Sua Loja")
-    setNomeLoja("Sua Loja")
-
-    // Remover dados existentes da loja
-    await supabase.from('fornecedores').delete().eq('loja_id', lojaId)
-    await supabase.from('marcas').delete().eq('loja_id', lojaId)
-    await supabase.from('condicoes').delete().eq('loja_id', lojaId)
-
-    // Fornecedores padrão
-    const defaultFornecedores = [
-      "NEW STORE", "NOVA PEÇAS", "FLORITEC", "VITOR CAMELÃO"
-    ]
-    for (const nome of defaultFornecedores) {
-      await supabase
-        .from('fornecedores')
-        .insert({ nome, loja_id: lojaId })
-    }
-    await carregarFornecedores(lojaId)
-
-    // Marcas padrão
-    const defaultMarcas = [
-      "SAMSUNG", "APPLE", "MOTOROLA", "XIAOMI", "LG", "ASUS", "INFINIX"
-    ]
-    for (const nome of defaultMarcas) {
-      await supabase
-        .from('marcas')
-        .insert({ nome, loja_id: lojaId })
-    }
-    await carregarMarcas(lojaId)
-
-    // Condições padrão
-    const defaultCondicoes = [
-      "CONSERTO", "GARANTIA", "LOJA", "DEVOLUÇÃO", "DEVOLUÇÃO PAGA", "QUEBRADA"
-    ]
-    for (const nome of defaultCondicoes) {
-      await supabase
-        .from('condicoes')
-        .insert({ nome, loja_id: lojaId })
-    }
-    await carregarCondicoes(lojaId)
-
-    setMensagem({ tipo: "success", texto: "Configurações restauradas para o padrão!" })
-    setSaving(false)
-    setTimeout(() => setMensagem(null), 3000)
-  }
-
-  // ========== FUNÇÕES DE UI ==========
+  // ========== FUNÇÕES DE LOGO E NOME ==========
   const handleLogoUpload = (event: any) => {
     const file = event.target.files?.[0]
     if (file) {
@@ -358,7 +119,9 @@ async function carregarUsuario() {
         return
       }
       const reader = new FileReader()
-      reader.onloadend = () => setPreviewLogo(reader.result as string)
+      reader.onloadend = () => {
+        setPreviewLogo(reader.result as string)
+      }
       reader.readAsDataURL(file)
     }
   }
@@ -406,6 +169,186 @@ async function carregarUsuario() {
       setTimeout(() => setMensagem(null), 3000)
     } else {
       setMensagem({ tipo: "error", texto: "O nome da loja não pode estar vazio." })
+      setTimeout(() => setMensagem(null), 3000)
+    }
+  }
+
+  // ========== FORNECEDORES ==========
+  const adicionarFornecedor = () => {
+    if (novoFornecedor.trim()) {
+      const novo = { id: Date.now(), nome: novoFornecedor.toUpperCase() }
+      const novosFornecedores = [...fornecedores, novo]
+      setFornecedores(novosFornecedores)
+      sessionStorage.setItem(`fornecedores_${lojaId}`, JSON.stringify(novosFornecedores))
+      setNovoFornecedor("")
+      setMensagem({ tipo: "success", texto: "Fornecedor adicionado!" })
+      setTimeout(() => setMensagem(null), 3000)
+    }
+  }
+
+  const editarFornecedor = (fornecedor: any) => {
+    setEditandoFornecedor(fornecedor)
+    setNovoFornecedor(fornecedor.nome)
+  }
+
+  const salvarEdicaoFornecedor = () => {
+    if (editandoFornecedor && novoFornecedor.trim()) {
+      const novosFornecedores = fornecedores.map((f: any) => 
+        f.id === editandoFornecedor.id ? { ...f, nome: novoFornecedor.toUpperCase() } : f
+      )
+      setFornecedores(novosFornecedores)
+      sessionStorage.setItem(`fornecedores_${lojaId}`, JSON.stringify(novosFornecedores))
+      setEditandoFornecedor(null)
+      setNovoFornecedor("")
+      setMensagem({ tipo: "success", texto: "Fornecedor atualizado!" })
+      setTimeout(() => setMensagem(null), 3000)
+    }
+  }
+
+  const cancelarEdicaoFornecedor = () => {
+    setEditandoFornecedor(null)
+    setNovoFornecedor("")
+  }
+
+  const excluirFornecedor = (id: number) => {
+    if (confirm("Tem certeza que deseja excluir este fornecedor?")) {
+      const novosFornecedores = fornecedores.filter((f: any) => f.id !== id)
+      setFornecedores(novosFornecedores)
+      sessionStorage.setItem(`fornecedores_${lojaId}`, JSON.stringify(novosFornecedores))
+      setMensagem({ tipo: "success", texto: "Fornecedor excluído!" })
+      setTimeout(() => setMensagem(null), 3000)
+    }
+  }
+
+  // ========== MARCAS ==========
+  const adicionarMarca = () => {
+    if (novaMarca.trim()) {
+      const novo = { id: Date.now(), nome: novaMarca.toUpperCase() }
+      const novasMarcas = [...marcas, novo]
+      setMarcas(novasMarcas)
+      sessionStorage.setItem(`marcas_${lojaId}`, JSON.stringify(novasMarcas))
+      setNovaMarca("")
+      setMensagem({ tipo: "success", texto: "Marca adicionada!" })
+      setTimeout(() => setMensagem(null), 3000)
+    }
+  }
+
+  const editarMarca = (marca: any) => {
+    setEditandoMarca(marca)
+    setNovaMarca(marca.nome)
+  }
+
+  const salvarEdicaoMarca = () => {
+    if (editandoMarca && novaMarca.trim()) {
+      const novasMarcas = marcas.map((m: any) => 
+        m.id === editandoMarca.id ? { ...m, nome: novaMarca.toUpperCase() } : m
+      )
+      setMarcas(novasMarcas)
+      sessionStorage.setItem(`marcas_${lojaId}`, JSON.stringify(novasMarcas))
+      setEditandoMarca(null)
+      setNovaMarca("")
+      setMensagem({ tipo: "success", texto: "Marca atualizada!" })
+      setTimeout(() => setMensagem(null), 3000)
+    }
+  }
+
+  const cancelarEdicaoMarca = () => {
+    setEditandoMarca(null)
+    setNovaMarca("")
+  }
+
+  const excluirMarca = (id: number) => {
+    if (confirm("Tem certeza que deseja excluir esta marca?")) {
+      const novasMarcas = marcas.filter((m: any) => m.id !== id)
+      setMarcas(novasMarcas)
+      sessionStorage.setItem(`marcas_${lojaId}`, JSON.stringify(novasMarcas))
+      setMensagem({ tipo: "success", texto: "Marca excluída!" })
+      setTimeout(() => setMensagem(null), 3000)
+    }
+  }
+
+  // ========== CONDIÇÕES ==========
+  const adicionarCondicao = () => {
+    if (novaCondicao.trim()) {
+      const novo = { id: Date.now(), nome: novaCondicao.toUpperCase() }
+      const novasCondicoes = [...condicoes, novo]
+      setCondicoes(novasCondicoes)
+      sessionStorage.setItem(`condicoes_${lojaId}`, JSON.stringify(novasCondicoes))
+      setNovaCondicao("")
+      setMensagem({ tipo: "success", texto: "Condição adicionada!" })
+      setTimeout(() => setMensagem(null), 3000)
+    }
+  }
+
+  const editarCondicao = (condicao: any) => {
+    setEditandoCondicao(condicao)
+    setNovaCondicao(condicao.nome)
+  }
+
+  const salvarEdicaoCondicao = () => {
+    if (editandoCondicao && novaCondicao.trim()) {
+      const novasCondicoes = condicoes.map((c: any) => 
+        c.id === editandoCondicao.id ? { ...c, nome: novaCondicao.toUpperCase() } : c
+      )
+      setCondicoes(novasCondicoes)
+      sessionStorage.setItem(`condicoes_${lojaId}`, JSON.stringify(novasCondicoes))
+      setEditandoCondicao(null)
+      setNovaCondicao("")
+      setMensagem({ tipo: "success", texto: "Condição atualizada!" })
+      setTimeout(() => setMensagem(null), 3000)
+    }
+  }
+
+  const cancelarEdicaoCondicao = () => {
+    setEditandoCondicao(null)
+    setNovaCondicao("")
+  }
+
+  const excluirCondicao = (id: number) => {
+    if (confirm("Tem certeza que deseja excluir esta condição?")) {
+      const novasCondicoes = condicoes.filter((c: any) => c.id !== id)
+      setCondicoes(novasCondicoes)
+      sessionStorage.setItem(`condicoes_${lojaId}`, JSON.stringify(novasCondicoes))
+      setMensagem({ tipo: "success", texto: "Condição excluída!" })
+      setTimeout(() => setMensagem(null), 3000)
+    }
+  }
+
+  // ========== RESETAR PADRÃO ==========
+  const resetarPadrao = async () => {
+    if (confirm("Isso irá restaurar todas as configurações padrão. Continuar?")) {
+      setSaving(true)
+      await updateConfigLoja("TechFlow", null)
+      setPreviewLogo(null)
+      setLogoUrl(null)
+      setNomeLojaTemp("TechFlow")
+      setNomeLoja("TechFlow")
+      
+      const defaultFornecedores = [
+        { id: 1, nome: "NEW STORE" }, { id: 2, nome: "NOVA PEÇAS" },
+        { id: 3, nome: "FLORITEC" }, { id: 4, nome: "VITOR CAMELÃO" }
+      ]
+      setFornecedores(defaultFornecedores)
+      sessionStorage.setItem(`fornecedores_${lojaId}`, JSON.stringify(defaultFornecedores))
+      
+      const defaultMarcas = [
+        { id: 1, nome: "SAMSUNG" }, { id: 2, nome: "APPLE" },
+        { id: 3, nome: "MOTOROLA" }, { id: 4, nome: "XIAOMI" },
+        { id: 5, nome: "LG" }, { id: 6, nome: "ASUS" }, { id: 7, nome: "INFINIX" }
+      ]
+      setMarcas(defaultMarcas)
+      sessionStorage.setItem(`marcas_${lojaId}`, JSON.stringify(defaultMarcas))
+      
+      const defaultCondicoes = [
+        { id: 1, nome: "CONSERTO" }, { id: 2, nome: "GARANTIA" },
+        { id: 3, nome: "LOJA" }, { id: 4, nome: "DEVOLUÇÃO" },
+        { id: 5, nome: "DEVOLUÇÃO PAGA" }, { id: 6, nome: "QUEBRADA" }
+      ]
+      setCondicoes(defaultCondicoes)
+      sessionStorage.setItem(`condicoes_${lojaId}`, JSON.stringify(defaultCondicoes))
+      
+      setMensagem({ tipo: "success", texto: "Configurações restauradas para o padrão!" })
+      setSaving(false)
       setTimeout(() => setMensagem(null), 3000)
     }
   }
@@ -556,7 +499,7 @@ async function carregarUsuario() {
                   {fornecedores.map((f: any) => (
                     <div key={f.id} className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg px-2 py-1.5 transition-colors">
                       <span className="text-xs text-gray-700 dark:text-gray-300">{f.nome}</span>
-                      <button onClick={() => setEditandoFornecedor(f)} className="p-0.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors">
+                      <button onClick={() => editarFornecedor(f)} className="p-0.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors">
                         <Edit className="w-3 h-3" />
                       </button>
                       <button onClick={() => excluirFornecedor(f.id)} className="p-0.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors">
@@ -612,7 +555,7 @@ async function carregarUsuario() {
                   {marcas.map((m: any) => (
                     <div key={m.id} className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg px-2 py-1.5 transition-colors">
                       <span className="text-xs text-gray-700 dark:text-gray-300">{m.nome}</span>
-                      <button onClick={() => setEditandoMarca(m)} className="p-0.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors">
+                      <button onClick={() => editarMarca(m)} className="p-0.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors">
                         <Edit className="w-3 h-3" />
                       </button>
                       <button onClick={() => excluirMarca(m.id)} className="p-0.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors">
@@ -668,7 +611,7 @@ async function carregarUsuario() {
                   {condicoes.map((c: any) => (
                     <div key={c.id} className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg px-2 py-1.5 transition-colors">
                       <span className="text-xs text-gray-700 dark:text-gray-300">{c.nome}</span>
-                      <button onClick={() => setEditandoCondicao(c)} className="p-0.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors">
+                      <button onClick={() => editarCondicao(c)} className="p-0.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors">
                         <Edit className="w-3 h-3" />
                       </button>
                       <button onClick={() => excluirCondicao(c.id)} className="p-0.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors">
