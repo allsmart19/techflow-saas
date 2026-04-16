@@ -134,7 +134,8 @@ export default function Login() {
           id: userData.id,
           username: userData.username,
           role: userData.role,
-          loja_id: userData.loja_id
+          loja_id: userData.loja_id,
+          email: userData.email
         }))
 
         navigate("/dashboard")

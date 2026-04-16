@@ -167,6 +167,42 @@ const handleAssinar = async (plano: typeof PLANOS.monthly) => {
     return;
   }
 
+  // 🔥 LOGS PARA DEBUG
+  console.log("📦 user completo:", user);
+  console.log("📧 user.email:", user.email);
+  console.log("🆔 user.id:", user.id);
+  console.log("🏷️ priceId:", plano.priceId);
+
+  // 🔥 Garantir que o email existe
+  let emailParaEnviar = user.email;
+  
+  // Se o email não estiver no objeto user, buscar do sessionStorage
+  if (!emailParaEnviar) {
+    const userStr = sessionStorage.getItem("user");
+    if (userStr) {
+      const userData = JSON.parse(userStr);
+      emailParaEnviar = userData.email;
+      console.log("📧 Email recuperado do sessionStorage:", emailParaEnviar);
+    }
+  }
+  
+  // Se ainda não tiver email, buscar do Supabase
+  if (!emailParaEnviar) {
+    const { data } = await supabase
+      .from("usuarios")
+      .select("email")
+      .eq("id", user.id)
+      .single();
+    emailParaEnviar = data?.email;
+    console.log("📧 Email recuperado do Supabase:", emailParaEnviar);
+  }
+
+  if (!emailParaEnviar) {
+    alert("Erro: Seu email não foi encontrado. Contate o suporte.");
+    setProcessando(false);
+    return;
+  }
+
   setProcessando(true);
 
   try {
@@ -178,7 +214,7 @@ const handleAssinar = async (plano: typeof PLANOS.monthly) => {
       body: JSON.stringify({
         priceId: plano.priceId,
         userId: user.id,
-        userEmail: user.email  // 🔥 APENAS O EMAIL, SEM FALLBACK
+        userEmail: emailParaEnviar
       })
     });
 
