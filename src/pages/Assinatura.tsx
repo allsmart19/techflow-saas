@@ -398,7 +398,7 @@ if (assinaturaAtiva && ["active", "trialing"].includes(assinaturaAtiva.status)) 
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {/* Plano Mensal - só mostra se NÃO for o plano atual */}
+
 {/* Plano Mensal - só mostra se NÃO for o plano atual */}
 {!isPlanoMensal && (
   <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
@@ -414,7 +414,7 @@ if (assinaturaAtiva && ["active", "trialing"].includes(assinaturaAtiva.status)) 
       ))}
     </ul>
     <button
-      onClick={() => handleAssinar(PLANOS.monthly)}
+      onClick={() => handleGerenciarAssinatura()}  // 🔥 MUDOU AQUI
       disabled={processando}
       className="w-full border border-purple-600 text-purple-600 dark:text-purple-400 dark:border-purple-500 py-2 rounded-lg text-xs font-medium hover:bg-purple-50 dark:hover:bg-purple-900/30 transition disabled:opacity-50"
     >
@@ -446,7 +446,7 @@ if (assinaturaAtiva && ["active", "trialing"].includes(assinaturaAtiva.status)) 
       ))}
     </ul>
     <button
-      onClick={() => handleAssinar(PLANOS.yearly)}
+      onClick={() => handleGerenciarAssinatura()}  // 🔥 MUDOU AQUI
       disabled={processando}
       className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-2 rounded-lg text-xs font-medium hover:shadow-lg transition disabled:opacity-50"
     >
