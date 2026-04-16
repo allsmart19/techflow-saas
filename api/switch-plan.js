@@ -26,35 +26,41 @@ export default async function handler(req, res) {
     // 1. Buscar a assinatura atual
     const oldSubscription = await stripe.subscriptions.retrieve(oldSubscriptionId);
     const customerId = oldSubscription.customer;
+    
+    // 2. Obter o método de pagamento padrão da assinatura atual
+    const paymentMethodId = oldSubscription.default_payment_method;
+    
+    if (!paymentMethodId) {
+      return res.status(400).json({ 
+        error: 'Método de pagamento não encontrado. O cliente precisa ter um cartão associado.' 
+      });
+    }
 
-    // 2. CANCELAR IMEDIATAMENTE a assinatura antiga
+    // 3. CANCELAR IMEDIATAMENTE a assinatura antiga
     await stripe.subscriptions.cancel(oldSubscriptionId, {
       cancellation_details: { comment: 'Troca de plano' }
     });
-    console.log('✅ Assinatura antiga cancelada:', oldSubscriptionId);
 
-    // 3. Criar NOVA assinatura com o novo plano
+    // 4. Criar NOVA assinatura com o novo plano e o mesmo método de pagamento
     const newSubscription = await stripe.subscriptions.create({
       customer: customerId,
       items: [{ price: newPriceId }],
+      default_payment_method: paymentMethodId, // 🔥 ESSE É O SEGREDO
       proration_behavior: 'always_invoice',
       trial_from_plan: false,
       metadata: { userId: userId.toString() }
     });
-    console.log('✅ Nova assinatura criada:', newSubscription.id);
 
-    // 4. Atualizar Supabase
+    // 5. Atualizar Supabase
     const planName = newPriceId === "price_1TLlGuGhIX9bHHYRIwSV4W4o" 
       ? "Plano Pro Mensal" 
       : "Plano Pro Anual";
 
-    // Marcar antiga como cancelada
     await supabase
       .from('assinaturas')
       .update({ status: 'canceled' })
       .eq('stripe_subscription_id', oldSubscriptionId);
 
-    // Inserir nova
     const { error } = await supabase.from('assinaturas').insert({
       user_id: userId,
       stripe_subscription_id: newSubscription.id,
@@ -68,7 +74,7 @@ export default async function handler(req, res) {
 
     if (error) throw error;
 
-    return res.status(200).json({ success: true, newSubscriptionId: newSubscription.id });
+    return res.status(200).json({ success: true });
   } catch (error) {
     console.error('❌ Erro ao trocar plano:', error);
     return res.status(500).json({ error: error.message });
