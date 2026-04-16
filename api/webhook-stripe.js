@@ -104,15 +104,31 @@ export default async function handler(req, res) {
       case 'customer.subscription.updated': {
         const updatedSub = event.data.object;
         console.log('🔄 Assinatura atualizada:', updatedSub.id);
+        console.log('📅 current_period_end (timestamp):', updatedSub.current_period_end);
         
-        await supabase
+        const novaDataExpiracao = updatedSub.current_period_end 
+          ? new Date(updatedSub.current_period_end * 1000) 
+          : null;
+        
+        console.log('📅 Nova data_expiracao calculada:', novaDataExpiracao);
+        console.log('📅 Status:', updatedSub.status);
+        console.log('📅 cancel_at_period_end:', updatedSub.cancel_at_period_end);
+        
+        const { error } = await supabase
           .from('assinaturas')
           .update({
             status: updatedSub.status,
-            data_expiracao: updatedSub.current_period_end ? new Date(updatedSub.current_period_end * 1000) : undefined,
+            data_expiracao: novaDataExpiracao,
+            trial_end: updatedSub.trial_end ? new Date(updatedSub.trial_end * 1000) : null,
             cancel_at_period_end: updatedSub.cancel_at_period_end,
           })
           .eq('stripe_subscription_id', updatedSub.id);
+
+        if (error) {
+          console.error('❌ Erro ao atualizar assinatura:', error);
+        } else {
+          console.log('✅ Assinatura atualizada no Supabase com data_expiracao:', novaDataExpiracao);
+        }
         break;
       }
 
@@ -120,10 +136,16 @@ export default async function handler(req, res) {
         const deletedSub = event.data.object;
         console.log('❌ Assinatura cancelada:', deletedSub.id);
         
-        await supabase
+        const { error } = await supabase
           .from('assinaturas')
           .update({ status: 'canceled' })
           .eq('stripe_subscription_id', deletedSub.id);
+        
+        if (error) {
+          console.error('❌ Erro ao marcar como cancelada:', error);
+        } else {
+          console.log('✅ Assinatura marcada como cancelada no Supabase');
+        }
         break;
       }
 
