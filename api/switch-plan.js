@@ -24,15 +24,16 @@ export default async function handler(req, res) {
     }
 
     // 1. Buscar a assinatura atual
-    const subscription = await stripe.subscriptions.retrieve(oldSubscriptionId);
-    const customerId = subscription.customer;
-    const currentPriceId = subscription.items.data[0].price.id;
+    const oldSubscription = await stripe.subscriptions.retrieve(oldSubscriptionId);
+    const customerId = oldSubscription.customer;
 
-    if (currentPriceId === newPriceId) {
-      return res.status(400).json({ error: 'Você já está neste plano' });
-    }
+    // 2. CANCELAR IMEDIATAMENTE a assinatura antiga
+    await stripe.subscriptions.cancel(oldSubscriptionId, {
+      cancellation_details: { comment: 'Troca de plano' }
+    });
+    console.log('✅ Assinatura antiga cancelada:', oldSubscriptionId);
 
-    // 2. Criar NOVA assinatura com o novo plano
+    // 3. Criar NOVA assinatura com o novo plano
     const newSubscription = await stripe.subscriptions.create({
       customer: customerId,
       items: [{ price: newPriceId }],
@@ -40,23 +41,20 @@ export default async function handler(req, res) {
       trial_from_plan: false,
       metadata: { userId: userId.toString() }
     });
+    console.log('✅ Nova assinatura criada:', newSubscription.id);
 
-    // 3. CANCELAR IMEDIATAMENTE a assinatura antiga (NÃO no fim do período)
-    await stripe.subscriptions.cancel(oldSubscriptionId, {
-      cancellation_details: { comment: 'Troca de plano' }
-    });
+    // 4. Atualizar Supabase
+    const planName = newPriceId === "price_1TLlGuGhIX9bHHYRIwSV4W4o" 
+      ? "Plano Pro Mensal" 
+      : "Plano Pro Anual";
 
-    // 4. Atualizar Supabase: marcar antiga como canceled
+    // Marcar antiga como cancelada
     await supabase
       .from('assinaturas')
       .update({ status: 'canceled' })
       .eq('stripe_subscription_id', oldSubscriptionId);
 
-    // 5. Inserir nova assinatura no Supabase
-    const planName = newPriceId === "price_1TLlGuGhIX9bHHYRIwSV4W4o" 
-      ? "Plano Pro Mensal" 
-      : "Plano Pro Anual";
-
+    // Inserir nova
     const { error } = await supabase.from('assinaturas').insert({
       user_id: userId,
       stripe_subscription_id: newSubscription.id,
