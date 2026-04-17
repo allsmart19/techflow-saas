@@ -22,7 +22,9 @@ interface Conserto {
   comissao: number
   tecnico_id: number
   user_id: number
+  loja_id: number
   usuario_nome?: string
+  usuario_ativo?: boolean
 }
 
 interface Usuario {
@@ -44,9 +46,9 @@ export default function Consertos() {
   const [usuarioSelecionado, setUsuarioSelecionado] = useState<string>("")
   const [userLogado, setUserLogado] = useState<any>(null)
   const [comissaoPercentualUsuario, setComissaoPercentualUsuario] = useState<number>(10)
-  
   const [modalAberto, setModalAberto] = useState(false)
   const [editandoId, setEditandoId] = useState<number | null>(null)
+  
   const [formData, setFormData] = useState({
     data: new Date().toISOString().split('T')[0],
     modelo: "",
@@ -84,112 +86,140 @@ export default function Consertos() {
   }, [userLogado, usuarioSelecionado, mesSelecionado])
 
   async function carregarComissaoUsuario() {
-    const percentual = await getComissaoPercentual(userLogado?.id)
-    setComissaoPercentualUsuario(percentual)
+    let userIdInt = userLogado?.id
+
+    if (typeof userIdInt === 'string' && userIdInt.includes('-')) {
+      const { data } = await supabase
+        .from("usuarios")
+        .select("id")
+        .eq("email", userLogado?.email)
+        .single()
+      if (data) userIdInt = data.id
+    }
+
+    if (userIdInt) {
+      const percentual = await getComissaoPercentual(userIdInt)
+      setComissaoPercentualUsuario(percentual)
+    }
   }
 
-  // Carregar lista de usuários (apenas para admin_loja e master)
   async function carregarUsuarios() {
-    // Obter loja_id do admin logado
-    const { data: adminInfo, error: adminError } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", userLogado?.id)
-      .single()
-    
-    if (adminError) {
-      console.error("Erro ao obter loja_id:", adminError)
-      return
+    if (!userLogado) return;
+
+    let lojaIdEncontrado = userLogado.loja_id;
+
+    if (!lojaIdEncontrado) {
+      const { data: infoBanco } = await supabase
+        .from("usuarios")
+        .select("loja_id")
+        .eq("email", userLogado.email)
+        .maybeSingle();
+      
+      if (infoBanco?.loja_id) {
+        lojaIdEncontrado = infoBanco.loja_id;
+      }
     }
-    
-    const lojaId = adminInfo?.loja_id || 1
-    
-    // Carregar todos os técnicos (role = user) da mesma loja
+
+    if (!lojaIdEncontrado && typeof userLogado.id === 'number') {
+      const { data: infoFallback } = await supabase
+        .from("usuarios")
+        .select("loja_id")
+        .eq("id", userLogado.id)
+        .maybeSingle();
+      
+      if (infoFallback?.loja_id) {
+        lojaIdEncontrado = infoFallback.loja_id;
+      }
+    }
+
+    const lojaIdFinal = lojaIdEncontrado || 1;
+
     const { data, error } = await supabase
       .from("usuarios")
       .select("id, username, role, comissao_percentual, ativo")
-      .eq("loja_id", lojaId)
+      .eq("loja_id", lojaIdFinal)
       .eq("role", "user")
-      .order("username")
-    
+      .order("username");
+
     if (!error && data) {
-      setUsuarios(data)
-    } else {
-      console.error("Erro ao carregar usuários:", error)
+      setUsuarios(data);
+    } else if (error) {
+      console.error("Erro ao carregar técnicos da loja:", error);
     }
   }
 
-  // Função para buscar a comissão percentual do usuário
   async function getComissaoPercentual(tecnicoId: number): Promise<number> {
     const { data, error } = await supabase
       .from("usuarios")
       .select("comissao_percentual")
       .eq("id", tecnicoId)
       .single()
-    
+      
     if (error || !data) {
       return 10.00
     }
     return data.comissao_percentual
   }
 
-    async function carregarConsertos() {
-  const userStr = sessionStorage.getItem("user")
-  const user = userStr ? JSON.parse(userStr) : null
-  if (!user) return
+  async function carregarConsertos() {
+    const userStr = sessionStorage.getItem("user")
+    const user = userStr ? JSON.parse(userStr) : null
+    if (!user) return
 
-  // Buscar loja_id
-  let lojaId = user.loja_id
-  if (!lojaId) {
-    const { data } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", user.id)
-      .single()
-    lojaId = data?.loja_id
-  }
+    setLoading(true)
 
-  if (!lojaId) {
-    console.error("Usuário sem loja_id")
-    return
-  }
+    try {
+      let userIdInt = user.id
+      let lojaId = user.loja_id
+      let userRole = user.role
 
-  setLoading(true)
-  
-  let query = supabase.from("consertos").select("*")
-  
-  // 🔥 FILTRO OBRIGATÓRIO POR LOJA
-  if (user.role === 'admin_loja' || user.role === 'master') {
-    // Buscar todos os técnicos da loja
-    const { data: tecnicos } = await supabase
-      .from("usuarios")
-      .select("id")
-      .eq("loja_id", lojaId)
-      .eq("role", "user")
-    
-    const tecnicoIds = tecnicos?.map(t => t.id) || []
-    
-    if (usuarioSelecionado && usuarioSelecionado !== "") {
-      query = query.eq("tecnico_id", parseInt(usuarioSelecionado))
-    } else if (tecnicoIds.length > 0) {
-      query = query.in("tecnico_id", tecnicoIds)
-    } else {
-      query = query.eq("tecnico_id", -1) // Nenhum técnico
-    }
-  } else {
-    query = query.eq("user_id", user.id)
-  }
-    
-    const { data, error } = await query.order("data", { ascending: false })
-    
-    if (error) {
-      console.error("Erro ao carregar consertos:", error)
-      setConsertos([])
-    } else {
+      if (typeof userIdInt === 'string' || !lojaId) {
+        const { data: userData, error: userError } = await supabase
+          .from("usuarios")
+          .select("id, loja_id, role")
+          .eq("email", user.email)
+          .single()
+          
+        if (userData) {
+          userIdInt = userData.id
+          lojaId = userData.loja_id
+          userRole = userData.role
+        } else {
+          throw new Error("Não foi possível localizar o perfil numérico do usuário.")
+        }
+      }
+
+      let query = supabase.from("consertos").select("*")
+
+      if (userRole === 'admin_loja' || userRole === 'master') {
+        const { data: tecnicos } = await supabase
+          .from("usuarios")
+          .select("id")
+          .eq("loja_id", lojaId)
+          .eq("role", "user")
+          
+        const tecnicoIds = tecnicos?.map(t => t.id) || []
+        
+        if (usuarioSelecionado && usuarioSelecionado !== "") {
+          query = query.eq("tecnico_id", parseInt(usuarioSelecionado))
+        } else if (tecnicoIds.length > 0) {
+          query = query.in("tecnico_id", tecnicoIds)
+        } else {
+          query = query.eq("loja_id", lojaId)
+        }
+      } else {
+        query = query.eq("user_id", Number(userIdInt))
+      }
+
+      query = query.eq("loja_id", lojaId)
+
+      const { data, error } = await query.order("data", { ascending: false })
+
+      if (error) throw error
+
       let consertosComNomes = data || []
       
-      // Se for admin e não tiver filtro, buscar nomes dos usuários
-      if ((userLogado?.role === 'admin_loja' || userLogado?.role === 'master') && !usuarioSelecionado && consertosComNomes.length > 0) {
+      if ((userRole === 'admin_loja' || userRole === 'master') && !usuarioSelecionado && consertosComNomes.length > 0) {
         const userIds = [...new Set(consertosComNomes.map(c => c.tecnico_id))]
         const { data: usuariosData } = await supabase
           .from("usuarios")
@@ -199,15 +229,13 @@ export default function Consertos() {
         if (usuariosData) {
           consertosComNomes = consertosComNomes.map(c => ({
             ...c,
-            usuario_nome: usuariosData.find(u => u.id === c.tecnico_id)?.username || "Usuário não encontrado",
-            usuario_ativo: usuariosData.find(u => u.id === c.tecnico_id)?.ativo || false
+            usuario_nome: usuariosData.find(u => u.id === c.tecnico_id)?.username || "Usuário não encontrado"
           }))
         }
       }
       
       setConsertos(consertosComNomes)
       
-      // Gerar meses disponíveis
       const meses = new Set<string>()
       consertosComNomes?.forEach((c: Conserto) => {
         if (c.data) {
@@ -221,11 +249,17 @@ export default function Consertos() {
       const hoje = new Date()
       const mesAtual = `${(hoje.getMonth() + 1).toString().padStart(2, '0')}/${hoje.getFullYear()}`
       setMesSelecionado(mesSelecionado || (mesesLista.includes(mesAtual) ? mesAtual : (mesesLista[0] || "")))
+
+    } catch (error: any) {
+      console.error("Erro ao carregar consertos:", error)
+      if (error.code === "22P02") {
+        alert("Erro de sincronização de ID. Por favor, saia e entre novamente no sistema.")
+      }
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
-  // Filtrar consertos
   const consertosFiltrados = useMemo(() => {
     return consertos.filter(c => {
       let match = true
@@ -242,7 +276,6 @@ export default function Consertos() {
     })
   }, [consertos, mesSelecionado, search])
 
-  // Calcular totais
   const totais = useMemo(() => {
     const totalVendas = consertosFiltrados.reduce((acc, c) => acc + c.valor_cobrado, 0)
     const totalLucro = consertosFiltrados.reduce((acc, c) => acc + c.lucro, 0)
@@ -256,134 +289,227 @@ export default function Consertos() {
     return { totalVendas, totalLucro, totalFrete, comissaoTotal, quantidade }
   }, [consertosFiltrados])
 
-  const handleValorCobradoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/\D/g, '')
-    const valorCobrado = value ? parseFloat(value) / 100 : 0
-    const valorCusto = parseFloat(formData.valor_custo) || 0
-    const lucro = valorCobrado - valorCusto
-    const comissao = lucro * (comissaoPercentualUsuario / 100)
+const handleValorCobradoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  let value = e.target.value.replace(/\D/g, '')
+  const valorCobrado = value ? parseFloat(value) / 100 : 0
+  const valorCusto = parseFloat(formData.valor_custo) || 0
+  const frete = parseFloat(formData.frete) || 0
+  
+  // 🔥 LUCRO = VALOR COBRADO - VALOR CUSTO - FRETE
+  const lucro = valorCobrado - valorCusto - frete
+  const comissao = lucro > 0 ? lucro * (comissaoPercentualUsuario / 100) : 0
     
-    setFormData({
-      ...formData,
-      valor_cobrado: valorCobrado.toFixed(2),
-      lucro: lucro.toFixed(2),
-      comissao: comissao.toFixed(2)
-    })
+  setFormData({
+    ...formData,
+    valor_cobrado: valorCobrado.toFixed(2),
+    lucro: lucro.toFixed(2),
+    comissao: comissao.toFixed(2)
+  })
+}
+
+const handleValorCustoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  let value = e.target.value.replace(/\D/g, '')
+  const valorCusto = value ? parseFloat(value) / 100 : 0
+  const valorCobrado = parseFloat(formData.valor_cobrado) || 0
+  const frete = parseFloat(formData.frete) || 0
+  
+  // 🔥 LUCRO = VALOR COBRADO - VALOR CUSTO - FRETE
+  const lucro = valorCobrado - valorCusto - frete
+  const comissao = lucro > 0 ? lucro * (comissaoPercentualUsuario / 100) : 0
+    
+  setFormData({
+    ...formData,
+    valor_custo: valorCusto.toFixed(2),
+    lucro: lucro.toFixed(2),
+    comissao: comissao.toFixed(2)
+  })
+}
+
+  // 🔥 Função para exibir o frete formatado no campo
+  const displayFrete = () => {
+    if (formData.frete === "NÃO" || !formData.frete) return ""
+    const num = parseFloat(formData.frete)
+    if (isNaN(num)) return ""
+    return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   }
 
-  const handleValorCustoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/\D/g, '')
-    const valorCusto = value ? parseFloat(value) / 100 : 0
-    const valorCobrado = parseFloat(formData.valor_cobrado) || 0
-    const lucro = valorCobrado - valorCusto
-    const comissao = lucro * (comissaoPercentualUsuario / 100)
-    
-    setFormData({
-      ...formData,
-      valor_custo: valorCusto.toFixed(2),
-      lucro: lucro.toFixed(2),
-      comissao: comissao.toFixed(2)
-    })
+  // 🔥 Função para tratar a mudança do frete (mesmo padrão dos outros campos)
+const handleFreteChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  let value = e.target.value.replace(/\D/g, '')
+  let freteValue = 0
+  
+  if (value) {
+    freteValue = parseFloat(value) / 100
+    setFormData({...formData, frete: freteValue.toFixed(2)})
+  } else {
+    setFormData({...formData, frete: "NÃO"})
+    freteValue = 0
   }
+  
+  // 🔥 Recalcular lucro e comissão quando o frete mudar
+  const valorCobrado = parseFloat(formData.valor_cobrado) || 0
+  const valorCusto = parseFloat(formData.valor_custo) || 0
+  const lucro = valorCobrado - valorCusto - freteValue
+  const comissao = lucro > 0 ? lucro * (comissaoPercentualUsuario / 100) : 0
+  
+  setFormData(prev => ({
+    ...prev,
+    lucro: lucro.toFixed(2),
+    comissao: comissao.toFixed(2)
+  }))
+}
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    
-    const dataFormatada = new Date(formData.data).toLocaleDateString('pt-BR')
-    const valorCobrado = parseFloat(formData.valor_cobrado) || 0
-    const valorCusto = parseFloat(formData.valor_custo) || 0
-    
-    const lucro = valorCobrado - valorCusto
-    
-    let tecnicoId = userLogado?.id
-    
-    if (editandoId && (userLogado?.role === 'admin_loja' || userLogado?.role === 'master')) {
-      const { data: consertoOriginal } = await supabase
-        .from("consertos")
-        .select("tecnico_id")
-        .eq("id", editandoId)
-        .single()
-      
-      if (consertoOriginal) {
-        tecnicoId = consertoOriginal.tecnico_id
-      }
-    }
-    
-    const comissaoPercentual = await getComissaoPercentual(tecnicoId)
-    const comissao = lucro * (comissaoPercentual / 100)
-    
-    let freteValue = formData.frete
-    if (freteValue !== "NÃO" && freteValue && freteValue !== "") {
-      let cleanValue = freteValue.replace('R$ ', '').replace(/\./g, '').replace(',', '.')
-      const numericFrete = parseFloat(cleanValue)
-      if (!isNaN(numericFrete)) {
-        freteValue = `R$ ${numericFrete.toFixed(2)}`
-      }
-    } else if (freteValue === "" || freteValue === "NÃO") {
-      freteValue = "NÃO"
-    }
-    
-    const consertoData = {
-      data: dataFormatada,
-      modelo: formData.modelo.toUpperCase(),
-      servico: formData.servico,
-      valor_cobrado: valorCobrado,
-      valor_custo: valorCusto,
-      frete: freteValue,
-      lucro: lucro,
-      comissao: comissao,
-      tecnico_id: tecnicoId,
-      user_id: userLogado?.id
-    }
-    
-    let error = null
-    
-    if (editandoId) {
-      const { error: updateError } = await supabase
-        .from("consertos")
-        .update(consertoData)
-        .eq("id", editandoId)
-      error = updateError
-    } else {
-      const { error: insertError } = await supabase
-        .from("consertos")
-        .insert([consertoData])
-      error = insertError
-    }
-    
-    if (error) {
-      alert("Erro ao salvar conserto!")
-    } else {
-      alert(`✅ Conserto ${editandoId ? "atualizado" : "salvo"} com sucesso!`)
-      setModalAberto(false)
-      setEditandoId(null)
-      setFormData({
-        data: new Date().toISOString().split('T')[0],
-        modelo: "",
-        servico: "",
-        valor_cobrado: "",
-        valor_custo: "",
-        frete: "NÃO",
-        lucro: "0",
-        comissao: "0"
-      })
-      carregarConsertos()
-    }
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
+  setLoading(true)
+
+  const userStr = sessionStorage.getItem("user")
+  const user = userStr ? JSON.parse(userStr) : null
+  
+  if (!user) {
+    alert("Usuário não identificado.")
     setLoading(false)
+    return
   }
+
+  let userIdInt = user.id
+  let lojaId = user.loja_id
+
+  if (typeof userIdInt === 'string' && userIdInt.includes('-')) {
+    const { data: userData } = await supabase
+      .from("usuarios")
+      .select("id, loja_id")
+      .eq("email", user.email)
+      .single()
+      
+    if (userData) {
+      userIdInt = userData.id
+      lojaId = userData.loja_id
+    }
+  }
+
+  if (!lojaId) {
+    alert("Erro: Usuário não vinculado a uma loja.")
+    setLoading(false)
+    return
+  }
+
+  const dataFormatada = new Date(formData.data).toLocaleDateString('pt-BR')
+  const valorCobrado = parseFloat(formData.valor_cobrado) || 0
+  const valorCusto = parseFloat(formData.valor_custo) || 0
+  
+  // 🔥 Obter o valor do frete (pode ser "NÃO" ou um número)
+  let freteNumerico = 0
+  let freteValue = formData.frete
+  
+  if (freteValue !== "NÃO" && freteValue && freteValue !== "") {
+    freteNumerico = parseFloat(freteValue)
+    if (!isNaN(freteNumerico) && freteNumerico > 0) {
+      freteValue = `R$ ${freteNumerico.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+    } else {
+      freteValue = "NÃO"
+      freteNumerico = 0
+    }
+  } else {
+    freteValue = "NÃO"
+    freteNumerico = 0
+  }
+  
+  // 🔥 LUCRO = VALOR COBRADO - VALOR CUSTO - FRETE
+  const lucro = valorCobrado - valorCusto - freteNumerico
+
+  let tecnicoId = userIdInt
+  
+  if (editandoId && (user.role === 'admin_loja' || user.role === 'master')) {
+    const { data: consertoOriginal } = await supabase
+      .from("consertos")
+      .select("tecnico_id")
+      .eq("id", editandoId)
+      .single()
+      
+    if (consertoOriginal) {
+      tecnicoId = consertoOriginal.tecnico_id
+    }
+  }
+
+  const comissaoPercentual = await getComissaoPercentual(tecnicoId)
+  const comissao = lucro > 0 ? lucro * (comissaoPercentual / 100) : 0
+
+  const consertoData = {
+    data: dataFormatada,
+    modelo: formData.modelo.toUpperCase(),
+    servico: formData.servico,
+    valor_cobrado: valorCobrado,
+    valor_custo: valorCusto,
+    frete: freteValue,
+    lucro: lucro,
+    comissao: comissao,
+    tecnico_id: tecnicoId,
+    user_id: userIdInt,
+    loja_id: lojaId
+  }
+
+  let error = null
+  
+  if (editandoId) {
+    const { error: updateError } = await supabase
+      .from("consertos")
+      .update(consertoData)
+      .eq("id", editandoId)
+    error = updateError
+  } else {
+    const { error: insertError } = await supabase
+      .from("consertos")
+      .insert([consertoData])
+    error = insertError
+  }
+
+  if (error) {
+    console.error("Erro detalhado:", error)
+    alert(`Erro ao salvar conserto: ${error.message}`)
+  } else {
+    alert(`✅ Conserto ${editandoId ? "atualizado" : "salvo"} com sucesso!`)
+    setModalAberto(false)
+    setEditandoId(null)
+    setFormData({
+      data: new Date().toISOString().split('T')[0],
+      modelo: "",
+      servico: "",
+      valor_cobrado: "",
+      valor_custo: "",
+      frete: "NÃO",
+      lucro: "0",
+      comissao: "0"
+    })
+    carregarConsertos()
+  }
+  setLoading(false)
+}
 
   const editarConserto = (conserto: Conserto) => {
     setEditandoId(conserto.id)
     const partes = conserto.data.split('/')
     const dataInput = partes.length === 3 ? `${partes[2]}-${partes[1]}-${partes[0]}` : ""
+    
+    // 🔥 Converter frete para exibição no formulário
+    let freteDisplay = conserto.frete
+    if (freteDisplay !== "NÃO" && freteDisplay) {
+      const cleanValue = freteDisplay.replace('R$ ', '').replace(/\./g, '').replace(',', '.')
+      const numericFrete = parseFloat(cleanValue)
+      if (!isNaN(numericFrete)) {
+        freteDisplay = numericFrete.toFixed(2)
+      }
+    } else {
+      freteDisplay = "NÃO"
+    }
+    
     setFormData({
       data: dataInput,
       modelo: conserto.modelo,
       servico: conserto.servico,
       valor_cobrado: conserto.valor_cobrado.toFixed(2),
       valor_custo: conserto.valor_custo.toFixed(2),
-      frete: conserto.frete,
+      frete: freteDisplay,
       lucro: conserto.lucro.toFixed(2),
       comissao: conserto.comissao.toFixed(2)
     })
@@ -392,14 +518,7 @@ export default function Consertos() {
 
   const excluirConserto = async (id: number) => {
     if (confirm("Tem certeza que deseja excluir este conserto?")) {
-      let query = supabase.from("consertos").delete().eq("id", id)
-      
-      if (userLogado?.role !== 'admin_loja' && userLogado?.role !== 'master') {
-        query = query.eq("user_id", userLogado?.id)
-      }
-      
-      const { error } = await query
-      
+      const { error } = await supabase.from("consertos").delete().eq("id", id)
       if (error) {
         alert("Erro ao excluir conserto!")
       } else {
@@ -451,12 +570,13 @@ export default function Consertos() {
     doc.text(`Total Vendas: ${formatCurrency(totais.totalVendas)}`, 14, 98)
     doc.text(`Total Lucro: ${formatCurrency(totais.totalLucro)}`, 14, 106)
     doc.text(`Comissão Total: ${formatCurrency(totais.comissaoTotal)}`, 14, 114)
+    doc.text(`Total Frete: ${formatCurrency(totais.totalFrete)}`, 14, 122)
     
     doc.setFont("helvetica", 'bold')
-    doc.text("Lista de Consertos", 14, 130)
+    doc.text("Lista de Consertos", 14, 138)
     doc.setFont("helvetica", 'normal')
     
-    const headers = ["Data", "Modelo", "Serviço", "Valor", "Custo", "Lucro", "Comissão"]
+    const headers = ["Data", "Modelo", "Serviço", "Valor", "Custo", "Frete", "Lucro", "Comissão"]
     if ((userLogado?.role === 'admin_loja' || userLogado?.role === 'master') && !usuarioSelecionado) {
       headers.unshift("Técnico")
     }
@@ -470,6 +590,7 @@ export default function Consertos() {
           c.servico,
           formatCurrency(c.valor_cobrado),
           formatCurrency(c.valor_custo),
+          c.frete === "NÃO" ? "NÃO" : formatCurrency(parseFloat(c.frete.replace('R$ ', '').replace(/\./g, '').replace(',', '.'))),
           formatCurrency(c.lucro),
           formatCurrency(c.comissao)
         ]
@@ -481,11 +602,11 @@ export default function Consertos() {
     ]
     
     if (consertosFiltrados.length > 30) {
-      tabelaConsertos.push(["", "", `... e mais ${consertosFiltrados.length - 30} consertos`, "", "", "", ""])
+      tabelaConsertos.push(["", "", `... e mais ${consertosFiltrados.length - 30} consertos`, "", "", "", "", ""])
     }
     
     autoTable(doc, {
-      startY: 137,
+      startY: 145,
       head: [tabelaConsertos[0]],
       body: tabelaConsertos.slice(1),
       theme: 'striped',
@@ -607,7 +728,6 @@ export default function Consertos() {
             </select>
           </div>
 
-          {/* Seletor de Usuário - Apenas para Admin_loja e Master */}
           {(userLogado?.role === 'admin_loja' || userLogado?.role === 'master') && (
             <div className="relative">
               <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
@@ -624,9 +744,7 @@ export default function Consertos() {
                 ))}
               </select>
               {usuarios.length === 0 && (
-                <p className="text-xs text-gray-400 mt-1 absolute -bottom-5 left-0">
-                  Nenhum técnico cadastrado nesta loja
-                </p>
+                <p className="text-xs text-gray-400 mt-1 absolute -bottom-5 left-0">Nenhum técnico cadastrado nesta loja</p>
               )}
             </div>
           )}
@@ -661,19 +779,19 @@ export default function Consertos() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
               <tr>
-              {(userLogado?.role === 'admin_loja' || userLogado?.role === 'master') && !usuarioSelecionado && (
-                <th className="text-left p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">TÉCNICO</th>
-              )}
-              <th className="text-left p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">DATA</th>
-              <th className="text-left p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">MODELO</th>
-              <th className="text-left p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">SERVIÇO</th>
-              <th className="text-right p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">VALOR COBRADO</th>
-              <th className="text-right p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">VALOR CUSTO</th>
-              <th className="text-center p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">FRETE</th>
-              <th className="text-right p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">LUCRO</th>
-              <th className="text-right p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">COMISSÃO</th>
-              <th className="text-center p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">AÇÕES</th>
-            </tr>
+                {(userLogado?.role === 'admin_loja' || userLogado?.role === 'master') && !usuarioSelecionado && (
+                  <th className="text-left p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">TÉCNICO</th>
+                )}
+                <th className="text-left p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">DATA</th>
+                <th className="text-left p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">MODELO</th>
+                <th className="text-left p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">SERVIÇO</th>
+                <th className="text-right p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">VALOR COBRADO</th>
+                <th className="text-right p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">VALOR CUSTO</th>
+                <th className="text-center p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">FRETE</th>
+                <th className="text-right p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">LUCRO</th>
+                <th className="text-right p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">COMISSÃO</th>
+                <th className="text-center p-2 text-[10px] font-medium text-gray-500 dark:text-gray-400">AÇÕES</th>
+              </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
               {consertosFiltrados.length === 0 ? (
@@ -718,7 +836,6 @@ export default function Consertos() {
         </div>
       </div>
 
-      {/* Modal - mesmo código de antes */}
       {modalAberto && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
@@ -732,7 +849,6 @@ export default function Consertos() {
             </div>
             
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
-              {/* ... resto do modal (manter como está) ... */}
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">DATA *</label>
                 <input
@@ -800,40 +916,20 @@ export default function Consertos() {
                 </div>
               </div>
               
+              {/* 🔥 CAMPO FRETE ATUALIZADO */}
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">FRETE</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-xs">R$</span>
-                  
                   <input
-  type="text"
-  value={formData.frete === "NÃO" ? "" : formData.frete}
-  onChange={(e) => {
-    let value = e.target.value
-    // Remove tudo que não for número ou vírgula
-    let numericValue = value.replace(/[^\d,]/g, '')
-    
-    if (numericValue === "") {
-      setFormData({...formData, frete: "NÃO"})
-    } else {
-      // Garantir que só tenha uma vírgula
-      let parts = numericValue.split(',')
-      if (parts.length > 2) {
-        numericValue = parts[0] + ',' + parts.slice(1).join('')
-      }
-      // Limitar a 2 casas decimais
-      if (parts.length === 2 && parts[1].length > 2) {
-        numericValue = parts[0] + ',' + parts[1].substring(0, 2)
-      }
-      setFormData({...formData, frete: numericValue})
-    }
-  }}
-  className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none bg-gray-50 dark:bg-gray-900"
-  placeholder="Digite o valor do frete (ex: 50,00)"
-/>
-
+                    type="text"
+                    value={displayFrete()}
+                    onChange={handleFreteChange}
+                    className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none bg-gray-50 dark:bg-gray-900"
+                    placeholder="0,00"
+                  />
                 </div>
-                <p className="text-xs text-gray-400 mt-1">💡 Deixe vazio para marcar como "NÃO" ou digite o valor (ex: 50,00)</p>
+                <p className="text-xs text-gray-400 mt-1">💡 Digite o valor do frete (ex: 50,00) ou deixe vazio para "NÃO"</p>
               </div>
               
               <div className="grid grid-cols-2 gap-3">
@@ -846,6 +942,7 @@ export default function Consertos() {
                     className="w-full px-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
                   />
                 </div>
+                
                 <div>
                   <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">COMISSÃO (R$)</label>
                   <input

@@ -229,6 +229,9 @@ async function cadastrarUsuario(e: React.FormEvent) {
 // =========================
 // RESETAR SENHA (VIA API)
 // =========================
+// =========================
+// RESETAR SENHA (VIA API)
+// =========================
 async function resetarSenha() {
   if (!usuarioSelecionado) return;
 
@@ -263,7 +266,14 @@ async function resetarSenha() {
       })
     });
 
-    const data = await response.json();
+    // 🔥 VERIFICAR SE A RESPOSTA TEM CONTEÚDO ANTES DE FAZER JSON
+    const text = await response.text();
+    
+    if (!text || text.trim() === "") {
+      throw new Error('Resposta vazia da API');
+    }
+    
+    const data = JSON.parse(text);
 
     if (!response.ok) {
       throw new Error(data.error || 'Erro ao resetar senha');
@@ -275,7 +285,7 @@ async function resetarSenha() {
     carregarUsuarios();
   } catch (error: any) {
     console.error(error);
-    setMensagem({ tipo: "error", texto: error?.message || "Erro ao resetar senha" });
+    setMensagem({ tipo: "error", texto: error?.message || "Erro ao resetar senha. Verifique se o servidor está funcionando." });
   }
 
   setSaving(false);

@@ -28,6 +28,7 @@ export default function NovoPedido() {
   const [marcasLista, setMarcasLista] = useState<Marca[]>([])
   const [condicoesLista, setCondicoesLista] = useState<Condicao[]>([])
   const [carregandoListas, setCarregandoListas] = useState(true)
+  const [lojaId, setLojaId] = useState<number>(1)
   
   const [formData, setFormData] = useState({
     codigo: "",
@@ -42,7 +43,7 @@ export default function NovoPedido() {
     observacoes: ""
   })
 
-  // Carregar listas do Supabase
+  // Carregar listas do sessionStorage (integradas com a tela de Ajustes)
   useEffect(() => {
     const carregarListas = async () => {
       const userStr = sessionStorage.getItem("user")
@@ -53,44 +54,64 @@ export default function NovoPedido() {
       }
 
       // Obter loja_id do usuário logado
-      const { data: userInfo, error: userError } = await supabase
-        .from("usuarios")
-        .select("loja_id")
-        .eq("id", user.id)
-        .single()
-
-      if (userError) {
-        console.error("Erro ao obter loja_id:", userError)
-        return
+      let lojaIdValue = user.loja_id
+      if (!lojaIdValue) {
+        const { data: userInfo, error: userError } = await supabase
+          .from("usuarios")
+          .select("loja_id")
+          .eq("id", user.id)
+          .single()
+        if (!userError && userInfo) {
+          lojaIdValue = userInfo.loja_id
+        }
       }
-
-      const lojaId = userInfo?.loja_id || 1
+      
+      if (!lojaIdValue) lojaIdValue = 1
+      setLojaId(lojaIdValue)
 
       setCarregandoListas(true)
 
-      // Fornecedores
-      const { data: fornecedores, error: errFornecedores } = await supabase
-        .from('fornecedores')
-        .select('id, nome')
-        .eq('loja_id', lojaId)
-        .order('nome')
-      if (!errFornecedores && fornecedores) setFornecedoresLista(fornecedores)
+      // 🔥 Carregar FORNECEDORES do sessionStorage (vindos da tela de Ajustes)
+      const savedFornecedores = sessionStorage.getItem(`fornecedores_${lojaIdValue}`)
+      if (savedFornecedores) {
+        setFornecedoresLista(JSON.parse(savedFornecedores))
+      } else {
+        // Dados padrão caso não existam
+        const defaultFornecedores = [
+          { id: 1, nome: "NEW STORE" }, { id: 2, nome: "NOVA PEÇAS" },
+          { id: 3, nome: "FLORITEC" }, { id: 4, nome: "VITOR CAMELÃO" }
+        ]
+        setFornecedoresLista(defaultFornecedores)
+        sessionStorage.setItem(`fornecedores_${lojaIdValue}`, JSON.stringify(defaultFornecedores))
+      }
 
-      // Marcas
-      const { data: marcas, error: errMarcas } = await supabase
-        .from('marcas')
-        .select('id, nome')
-        .eq('loja_id', lojaId)
-        .order('nome')
-      if (!errMarcas && marcas) setMarcasLista(marcas)
+      // 🔥 Carregar MARCAS do sessionStorage (vindos da tela de Ajustes)
+      const savedMarcas = sessionStorage.getItem(`marcas_${lojaIdValue}`)
+      if (savedMarcas) {
+        setMarcasLista(JSON.parse(savedMarcas))
+      } else {
+        const defaultMarcas = [
+          { id: 1, nome: "SAMSUNG" }, { id: 2, nome: "APPLE" },
+          { id: 3, nome: "MOTOROLA" }, { id: 4, nome: "XIAOMI" },
+          { id: 5, nome: "LG" }, { id: 6, nome: "ASUS" }, { id: 7, nome: "INFINIX" }
+        ]
+        setMarcasLista(defaultMarcas)
+        sessionStorage.setItem(`marcas_${lojaIdValue}`, JSON.stringify(defaultMarcas))
+      }
 
-      // Condições
-      const { data: condicoes, error: errCondicoes } = await supabase
-        .from('condicoes')
-        .select('id, nome')
-        .eq('loja_id', lojaId)
-        .order('nome')
-      if (!errCondicoes && condicoes) setCondicoesLista(condicoes)
+      // 🔥 Carregar CONDIÇÕES do sessionStorage (vindos da tela de Ajustes)
+      const savedCondicoes = sessionStorage.getItem(`condicoes_${lojaIdValue}`)
+      if (savedCondicoes) {
+        setCondicoesLista(JSON.parse(savedCondicoes))
+      } else {
+        const defaultCondicoes = [
+          { id: 1, nome: "CONSERTO" }, { id: 2, nome: "GARANTIA" },
+          { id: 3, nome: "LOJA" }, { id: 4, nome: "DEVOLUÇÃO" },
+          { id: 5, nome: "DEVOLUÇÃO PAGA" }, { id: 6, nome: "QUEBRADA" }
+        ]
+        setCondicoesLista(defaultCondicoes)
+        sessionStorage.setItem(`condicoes_${lojaIdValue}`, JSON.stringify(defaultCondicoes))
+      }
 
       setCarregandoListas(false)
     }
@@ -168,79 +189,79 @@ export default function NovoPedido() {
     }
   }
 
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault()
-  
-  const userStr = sessionStorage.getItem("user")
-  const user = userStr ? JSON.parse(userStr) : null
-  if (!user) {
-    alert("Usuário não identificado.")
-    navigate("/login")
-    return
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    const userStr = sessionStorage.getItem("user")
+    const user = userStr ? JSON.parse(userStr) : null
+    if (!user) {
+      alert("Usuário não identificado.")
+      navigate("/login")
+      return
+    }
+
+    // 🔥 BUSCAR LOJA_ID DO USUÁRIO
+    let lojaIdValue = user.loja_id
+    
+    if (!lojaIdValue) {
+      const { data } = await supabase
+        .from("usuarios")
+        .select("loja_id")
+        .eq("id", user.id)
+        .single()
+      lojaIdValue = data?.loja_id
+    }
+
+    if (!lojaIdValue) {
+      alert("Erro: Usuário não vinculado a uma loja. Contate o administrador.")
+      return
+    }
+
+    setLoading(true)
+
+    const dataFormatada = new Date(formData.data).toLocaleDateString('pt-BR')
+    const vencimentoFormatado = new Date(formData.data_vencimento).toLocaleDateString('pt-BR')
+
+    const pedidoData = {
+      codigo: formData.codigo || null,
+      modelo: formData.modelo.toUpperCase(),
+      marca: formData.marca,
+      valor: parseFloat(formData.valor) || 0,
+      frete: parseFloat(formData.frete) || 0,
+      data: dataFormatada,
+      data_vencimento: vencimentoFormatado,
+      fornecedor: formData.fornecedor,
+      condicao: formData.condicao,
+      observacoes: formData.observacoes,
+      user_id: user.id,
+      loja_id: lojaIdValue
+    }
+
+    let error = null
+
+    if (isEditing && editingId) {
+      const { error: updateError } = await supabase
+        .from("pedidos")
+        .update(pedidoData)
+        .eq("id", editingId)
+      error = updateError
+    } else {
+      const { error: insertError } = await supabase
+        .from("pedidos")
+        .insert([pedidoData])
+      error = insertError
+    }
+
+    setLoading(false)
+
+    if (error) {
+      console.error("Erro detalhado:", error)
+      alert(`Erro ao ${isEditing ? "atualizar" : "salvar"} pedido: ${error.message}`)
+    } else {
+      alert(`✅ Pedido ${isEditing ? "atualizado" : "salvo"} com sucesso!`)
+      navigate("/pedidos")
+    }
   }
-
-  // 🔥 BUSCAR LOJA_ID DO USUÁRIO
-  let lojaId = user.loja_id
-  
-  if (!lojaId) {
-    const { data } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", user.id)
-      .single()
-    lojaId = data?.loja_id
-  }
-
-  if (!lojaId) {
-    alert("Erro: Usuário não vinculado a uma loja. Contate o administrador.")
-    return
-  }
-
-  setLoading(true)
-
-  const dataFormatada = new Date(formData.data).toLocaleDateString('pt-BR')
-  const vencimentoFormatado = new Date(formData.data_vencimento).toLocaleDateString('pt-BR')
-
-  const pedidoData = {
-    codigo: formData.codigo || null,
-    modelo: formData.modelo.toUpperCase(),
-    marca: formData.marca,
-    valor: parseFloat(formData.valor) || 0,
-    frete: parseFloat(formData.frete) || 0,
-    data: dataFormatada,
-    data_vencimento: vencimentoFormatado,
-    fornecedor: formData.fornecedor,
-    condicao: formData.condicao,
-    observacoes: formData.observacoes,
-    user_id: user.id,
-    loja_id: lojaId  // 🔥 CAMPO OBRIGATÓRIO
-  }
-
-  let error = null
-
-  if (isEditing && editingId) {
-    const { error: updateError } = await supabase
-      .from("pedidos")
-      .update(pedidoData)
-      .eq("id", editingId)
-    error = updateError
-  } else {
-    const { error: insertError } = await supabase
-      .from("pedidos")
-      .insert([pedidoData])
-    error = insertError
-  }
-
-  setLoading(false)
-
-  if (error) {
-    console.error("Erro detalhado:", error)
-    alert(`Erro ao ${isEditing ? "atualizar" : "salvar"} pedido: ${error.message}`)
-  } else {
-    alert(`✅ Pedido ${isEditing ? "atualizado" : "salvo"} com sucesso!`)
-    navigate("/pedidos")
-  }
-}
 
   const displayValor = () => {
     if (!formData.valor) return ""
