@@ -42,8 +42,9 @@ export default function Relatorios() {
   const [fornecedoresDisponiveis, setFornecedoresDisponiveis] = useState<string[]>([])
   const [relatorioData, setRelatorioData] = useState<CondicaoTotal | null>(null)
   const [pedidosFiltrados, setPedidosFiltrados] = useState<Pedido[]>([])
+  const [lojaId, setLojaId] = useState<number | null>(null)
 
-  // Carregar pedidos do usuário logado
+  // Carregar pedidos do usuário logado (com isolamento por loja)
   useEffect(() => {
     carregarPedidos()
   }, [])
@@ -54,17 +55,39 @@ export default function Relatorios() {
     if (!user) return
 
     setLoading(true)
+
+    // 🔥 BUSCAR LOJA_ID DO USUÁRIO
+    let lojaIdValue = user.loja_id
+    if (!lojaIdValue) {
+      const { data: userData } = await supabase
+        .from("usuarios")
+        .select("loja_id")
+        .eq("id", user.id)
+        .single()
+      lojaIdValue = userData?.loja_id
+    }
+
+    if (!lojaIdValue) {
+      console.error("Usuário sem loja_id")
+      setLoading(false)
+      return
+    }
+
+    setLojaId(lojaIdValue)
+
+    // 🔥 FILTRAR POR LOJA_ID (NÃO APENAS POR USER_ID)
     const { data, error } = await supabase
       .from("pedidos")
       .select("*")
-      .eq("user_id", user.id)  // 🔥 Filtro por usuário
+      .eq("loja_id", lojaIdValue)
+      .order("data", { ascending: false })
 
     if (error) {
       console.error("Erro ao carregar pedidos:", error)
     } else {
       setPedidos(data || [])
 
-      // Extrair anos, meses e fornecedores dos pedidos do usuário
+      // Extrair anos, meses e fornecedores dos pedidos da loja
       const anos = new Set<string>()
       const meses = new Set<string>()
       const fornecedores = new Set<string>()
@@ -89,8 +112,8 @@ export default function Relatorios() {
       setMesesDisponiveis(mesesLista)
       setFornecedoresDisponiveis(fornecedoresLista)
 
-      if (anosLista.length > 0) setAnoSelecionado(anosLista[0])
-      if (mesesLista.length > 0) setMesSelecionado(mesesLista[0])
+      if (anosLista.length > 0 && !anoSelecionado) setAnoSelecionado(anosLista[0])
+      if (mesesLista.length > 0 && !mesSelecionado) setMesSelecionado(mesesLista[0])
     }
     setLoading(false)
   }
@@ -178,7 +201,6 @@ export default function Relatorios() {
     const nomeFornecedor = fornecedorSelecionado && fornecedorSelecionado !== "todos" ? fornecedorSelecionado : "Todos os fornecedores"
     const dataAtual = new Date().toLocaleDateString('pt-BR')
 
-    // Cabeçalho principal
     doc.setFillColor(139, 92, 246)
     doc.rect(0, 0, 210, 35, 'F')
     doc.setTextColor(255, 255, 255)
@@ -189,7 +211,6 @@ export default function Relatorios() {
     doc.setFontSize(8)
     doc.text(`Gerado em: ${dataAtual}`, 150, 28, { align: 'right' })
 
-    // Informações do Relatório
     doc.setTextColor(0, 0, 0)
     doc.setFillColor(245, 245, 250)
     doc.rect(14, 45, 182, 30, 'F')
@@ -209,7 +230,6 @@ export default function Relatorios() {
     doc.text(`Tipo: ${tipoRelatorio === "mensal" ? "Relatório Mensal" : "Relatório Anual"}`, 80, 65)
     doc.text(`Fornecedor: ${nomeFornecedor}`, 20, 72)
 
-    // Resumo do Período
     let currentY = 88
     doc.setFontSize(10)
     doc.setFont("helvetica", 'bold')
@@ -237,7 +257,6 @@ export default function Relatorios() {
     doc.text("Frete Total:", 20, currentY + 5.5)
     doc.text(`${formatCurrency(relatorioData?.freteTotal || 0)}`, 180, currentY + 5.5, { align: 'right' })
 
-    // Tabela de Condições
     currentY += 12
     doc.setFontSize(10)
     doc.setFont("helvetica", 'bold')
@@ -278,7 +297,6 @@ export default function Relatorios() {
 
     let finalY = (doc as any).lastAutoTable.finalY + 8
 
-    // Lista de Pedidos
     if (pedidosFiltrados.length > 0) {
       doc.setFontSize(10)
       doc.setFont("helvetica", 'bold')
@@ -320,7 +338,6 @@ export default function Relatorios() {
       })
     }
 
-    // Rodapé
     const pageCount = doc.getNumberOfPages()
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i)
@@ -452,7 +469,6 @@ export default function Relatorios() {
 
         {!loading && relatorioData && pedidosFiltrados.length > 0 && (
           <>
-            {/* Informações do Relatório - Cabeçalho */}
             <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-xl p-4 border border-purple-100 dark:border-purple-900 mb-5">
               <h2 className="text-xs font-semibold text-purple-700 dark:text-purple-400 mb-2 flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5" />
@@ -476,7 +492,6 @@ export default function Relatorios() {
               </div>
             </div>
 
-            {/* Resumo do Período - Formato de Lista */}
             <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700 mb-5">
               <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Resumo do Período</h2>
               <div className="space-y-1.5">
@@ -501,7 +516,6 @@ export default function Relatorios() {
               </div>
             </div>
 
-            {/* Tabela de Condições */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden mb-5">
               <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Detalhamento por Condição</h2>
@@ -578,7 +592,6 @@ export default function Relatorios() {
               </div>
             </div>
 
-            {/* Lista de Pedidos do Período */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
               <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Pedidos no Período</h2>
