@@ -66,6 +66,7 @@ export default function Filtros() {
   const [mesesDisponiveis, setMesesDisponiveis] = useState<string[]>([])
   const [fornecedoresLista, setFornecedoresLista] = useState<string[]>([])
   const [condicoesLista, setCondicoesLista] = useState<string[]>([])
+  const [lojaId, setLojaId] = useState<number | null>(null)
 
   // Carregar último filtro salvo ao iniciar
   useEffect(() => {
@@ -81,51 +82,62 @@ export default function Filtros() {
     if (savedFornecedor) setFornecedorSelecionado(savedFornecedor)
     if (savedCondicao) setCondicaoSelecionada(savedCondicao)
     
-    carregarPedidos()
-    carregarDadosLocalStorage()
+    carregarDados()
   }, [])
 
-  // Carregar fornecedores e condições do localStorage
-  async function carregarDadosLocalStorage() {
-    // Carregar fornecedores
-    const savedFornecedores = sessionStorage.getItem("fornecedores")
+  async function carregarDados() {
+    const userStr = sessionStorage.getItem("user")
+    const user = userStr ? JSON.parse(userStr) : null
+    if (!user) return
+
+    setLoading(true)
+
+    // Buscar loja_id do usuário
+    let lojaIdValue = user.loja_id
+    if (!lojaIdValue) {
+      const { data: userData } = await supabase
+        .from("usuarios")
+        .select("loja_id")
+        .eq("id", user.id)
+        .single()
+      lojaIdValue = userData?.loja_id
+    }
+
+    if (!lojaIdValue) {
+      console.error("Usuário sem loja_id")
+      setLoading(false)
+      return
+    }
+
+    setLojaId(lojaIdValue)
+
+    // 🔥 CARREGAR FORNECEDORES DO SESSIONSTORAGE (integrados com Ajustes)
+    const savedFornecedores = sessionStorage.getItem(`fornecedores_${lojaIdValue}`)
     if (savedFornecedores) {
       const fornecedores = JSON.parse(savedFornecedores)
       setFornecedoresLista(fornecedores.map((f: any) => f.nome))
     } else {
+      // Fallback padrão
       setFornecedoresLista(["NEW STORE", "NOVA PEÇAS", "FLORITEC", "VITOR CAMELÃO"])
     }
-    
-    // Carregar condições
-    const savedCondicoes = sessionStorage.getItem("condicoes")
+
+    // 🔥 CARREGAR CONDIÇÕES DO SESSIONSTORAGE (integrados com Ajustes)
+    const savedCondicoes = sessionStorage.getItem(`condicoes_${lojaIdValue}`)
     if (savedCondicoes) {
       const condicoes = JSON.parse(savedCondicoes)
       setCondicoesLista(condicoes.map((c: any) => c.nome))
     } else {
+      // Fallback padrão
       setCondicoesLista(["CONSERTO", "GARANTIA", "LOJA", "DEVOLUÇÃO", "DEVOLUÇÃO PAGA", "QUEBRADA"])
     }
-  }
 
-  // Salvar filtros sempre que mudarem
-  useEffect(() => {
-    if (pedidos.length > 0) {
-      sessionStorage.setItem(STORAGE_KEYS.DATA_INICIO, dataInicio)
-      sessionStorage.setItem(STORAGE_KEYS.DATA_FIM, dataFim)
-      sessionStorage.setItem(STORAGE_KEYS.MES, mesSelecionado)
-      sessionStorage.setItem(STORAGE_KEYS.FORNECEDOR, fornecedorSelecionado)
-      sessionStorage.setItem(STORAGE_KEYS.CONDICAO, condicaoSelecionada)
-      
-      // Aplicar filtros automaticamente quando os dados estiverem carregados
-      if (dataInicio || dataFim || mesSelecionado || fornecedorSelecionado || condicaoSelecionada) {
-        aplicarFiltros()
-      }
-    }
-  }, [dataInicio, dataFim, mesSelecionado, fornecedorSelecionado, condicaoSelecionada, pedidos.length])
+    // Carregar pedidos da loja
+    const { data, error } = await supabase
+      .from("pedidos")
+      .select("*")
+      .eq("loja_id", lojaIdValue)
+      .order("data", { ascending: false })
 
-  async function carregarPedidos() {
-    setLoading(true)
-    const { data, error } = await supabase.from("pedidos").select("*")
-    
     if (error) {
       console.error("Erro ao carregar pedidos:", error)
     } else {
@@ -143,6 +155,22 @@ export default function Filtros() {
     }
     setLoading(false)
   }
+
+  // Salvar filtros sempre que mudarem
+  useEffect(() => {
+    if (pedidos.length > 0) {
+      sessionStorage.setItem(STORAGE_KEYS.DATA_INICIO, dataInicio)
+      sessionStorage.setItem(STORAGE_KEYS.DATA_FIM, dataFim)
+      sessionStorage.setItem(STORAGE_KEYS.MES, mesSelecionado)
+      sessionStorage.setItem(STORAGE_KEYS.FORNECEDOR, fornecedorSelecionado)
+      sessionStorage.setItem(STORAGE_KEYS.CONDICAO, condicaoSelecionada)
+      
+      // Aplicar filtros automaticamente quando os dados estiverem carregados
+      if (dataInicio || dataFim || mesSelecionado || fornecedorSelecionado || condicaoSelecionada) {
+        aplicarFiltros()
+      }
+    }
+  }, [dataInicio, dataFim, mesSelecionado, fornecedorSelecionado, condicaoSelecionada, pedidos.length])
 
   // Função para converter data do formato brasileiro (dd/mm/aaaa) para string YYYY-MM-DD
   function converterDataParaComparacao(dataStr: string): string {
@@ -195,12 +223,12 @@ export default function Filtros() {
     }
     
     // Filtro por fornecedor
-    if (fornecedorSelecionado && fornecedorSelecionado !== "TODOS") {
+    if (fornecedorSelecionado && fornecedorSelecionado !== "TODOS" && fornecedorSelecionado !== "") {
       filtrados = filtrados.filter(pedido => pedido.fornecedor === fornecedorSelecionado)
     }
     
     // Filtro por condição
-    if (condicaoSelecionada && condicaoSelecionada !== "TODAS") {
+    if (condicaoSelecionada && condicaoSelecionada !== "TODAS" && condicaoSelecionada !== "") {
       filtrados = filtrados.filter(pedido => pedido.condicao === condicaoSelecionada)
     }
     
@@ -209,7 +237,6 @@ export default function Filtros() {
     setLoading(false)
   }
 
-  // 🔥 FUNÇÃO CALCULAR TOTAIS CORRIGIDA
   function calcularTotais(pedidosLista: Pedido[]) {
     let conserto = { qtd: 0, valor: 0 }
     let garantia = { qtd: 0, valor: 0 }
@@ -256,10 +283,7 @@ export default function Filtros() {
       }
     })
     
-    // TOTAL NOTAS = SOMA DE TODOS
     const totalNotas = conserto.valor + garantia.valor + devolucao.valor + devolucaoPaga.valor + frete.valor + loja.valor + quebrada.valor
-    
-    // 🔥 TOTAL A PAGAR = CONSERTO + FRETE + LOJA + QUEBRADA - DEVOLUÇÃO_PAGA
     const totalAPagar = conserto.valor + frete.valor + loja.valor + quebrada.valor - devolucaoPaga.valor
     
     setTotais({
