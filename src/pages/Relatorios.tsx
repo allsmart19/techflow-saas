@@ -44,10 +44,41 @@ export default function Relatorios() {
   const [pedidosFiltrados, setPedidosFiltrados] = useState<Pedido[]>([])
   const [lojaId, setLojaId] = useState<number | null>(null)
 
-  // Carregar pedidos do usuário logado (com isolamento por loja)
+  // Carregar pedidos e fornecedores
   useEffect(() => {
     carregarPedidos()
+    carregarFornecedores()
   }, [])
+
+  // 🔥 CARREGAR FORNECEDORES DO SESSIONSTORAGE (integrados com a tela de Ajustes)
+  async function carregarFornecedores() {
+    const userStr = sessionStorage.getItem("user")
+    const user = userStr ? JSON.parse(userStr) : null
+    if (!user) return
+
+    // Buscar loja_id do usuário
+    let lojaIdValue = user.loja_id
+    if (!lojaIdValue) {
+      const { data: userData } = await supabase
+        .from("usuarios")
+        .select("loja_id")
+        .eq("id", user.id)
+        .single()
+      lojaIdValue = userData?.loja_id
+    }
+
+    if (!lojaIdValue) return
+
+    // 🔥 Carregar fornecedores do sessionStorage (vindos da tela de Ajustes)
+    const savedFornecedores = sessionStorage.getItem(`fornecedores_${lojaIdValue}`)
+    if (savedFornecedores) {
+      const fornecedores = JSON.parse(savedFornecedores)
+      setFornecedoresDisponiveis(fornecedores.map((f: any) => f.nome))
+    } else {
+      // Fallback caso não existam dados no sessionStorage
+      setFornecedoresDisponiveis(["NEW STORE", "NOVA PEÇAS", "FLORITEC", "VITOR CAMELÃO"])
+    }
+  }
 
   async function carregarPedidos() {
     const userStr = sessionStorage.getItem("user")
@@ -75,7 +106,7 @@ export default function Relatorios() {
 
     setLojaId(lojaIdValue)
 
-    // 🔥 FILTRAR POR LOJA_ID (NÃO APENAS POR USER_ID)
+    // 🔥 FILTRAR POR LOJA_ID
     const { data, error } = await supabase
       .from("pedidos")
       .select("*")
@@ -87,10 +118,9 @@ export default function Relatorios() {
     } else {
       setPedidos(data || [])
 
-      // Extrair anos, meses e fornecedores dos pedidos da loja
+      // Extrair anos e meses dos pedidos da loja
       const anos = new Set<string>()
       const meses = new Set<string>()
-      const fornecedores = new Set<string>()
 
       data?.forEach((p: Pedido) => {
         if (p.data) {
@@ -99,18 +129,13 @@ export default function Relatorios() {
           anos.add(ano)
           meses.add(mes)
         }
-        if (p.fornecedor) {
-          fornecedores.add(p.fornecedor)
-        }
       })
 
       const anosLista = Array.from(anos).sort().reverse()
       const mesesLista = Array.from(meses).sort().reverse()
-      const fornecedoresLista = Array.from(fornecedores).sort()
 
       setAnosDisponiveis(anosLista)
       setMesesDisponiveis(mesesLista)
-      setFornecedoresDisponiveis(fornecedoresLista)
 
       if (anosLista.length > 0 && !anoSelecionado) setAnoSelecionado(anosLista[0])
       if (mesesLista.length > 0 && !mesSelecionado) setMesSelecionado(mesesLista[0])
@@ -129,7 +154,7 @@ export default function Relatorios() {
       filtrados = filtrados.filter(p => p.data?.substring(6) === anoSelecionado)
     }
 
-    if (fornecedorSelecionado && fornecedorSelecionado !== "todos") {
+    if (fornecedorSelecionado && fornecedorSelecionado !== "todos" && fornecedorSelecionado !== "") {
       filtrados = filtrados.filter(p => p.fornecedor === fornecedorSelecionado)
     }
 
@@ -198,7 +223,9 @@ export default function Relatorios() {
   function gerarPDF() {
     const doc = new jsPDF()
     const periodo = tipoRelatorio === "mensal" ? mesSelecionado : anoSelecionado
-    const nomeFornecedor = fornecedorSelecionado && fornecedorSelecionado !== "todos" ? fornecedorSelecionado : "Todos os fornecedores"
+    const nomeFornecedor = fornecedorSelecionado && fornecedorSelecionado !== "todos" && fornecedorSelecionado !== "" 
+      ? fornecedorSelecionado 
+      : "Todos os fornecedores"
     const dataAtual = new Date().toLocaleDateString('pt-BR')
 
     doc.setFillColor(139, 92, 246)
@@ -355,7 +382,9 @@ export default function Relatorios() {
   }
 
   const periodoLabel = tipoRelatorio === "mensal" ? mesSelecionado : anoSelecionado
-  const nomeFornecedorLabel = fornecedorSelecionado && fornecedorSelecionado !== "todos" ? fornecedorSelecionado : "Todos os fornecedores"
+  const nomeFornecedorLabel = fornecedorSelecionado && fornecedorSelecionado !== "todos" && fornecedorSelecionado !== "" 
+    ? fornecedorSelecionado 
+    : "Todos os fornecedores"
 
   return (
     <div className="p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
