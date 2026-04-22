@@ -265,7 +265,7 @@ export default function Dashboard() {
     })
     
     // 🔥 FATURAMENTO = SOMA DE TUDO EXCETO DEVOLUÇÃO E DEVOLUÇÃO PAGA
-    const totalGeral = conserto.valor + garantia.valor + loja.valor + quebrada.valor + frete.valor
+    const totalGeral = conserto.valor + devolucao.valor + frete.valor + loja.valor + quebrada.valor
     const totalPedidos = dadosFiltrados.length
     const ticketMedio = totalPedidos > 0 ? totalGeral / totalPedidos : 0
     
