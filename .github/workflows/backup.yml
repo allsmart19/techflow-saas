@@ -1,5 +1,7 @@
-# .github/workflows/backup.yml
 name: Supabase Backup
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+# .github/workflows/backup.yml
 
 on:
   # Permite rodar o backup manualmente pela interface do GitHub
