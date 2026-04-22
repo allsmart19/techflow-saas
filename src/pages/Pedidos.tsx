@@ -81,27 +81,31 @@ export default function Pedidos() {
     setLoading(false)
   }
 
-  async function excluirPedido(id: number) {
-    // Obter usuário logado
-    const userStr = sessionStorage.getItem("user")
-    const user = userStr ? JSON.parse(userStr) : null
-    if (!user) return
+async function excluirPedido(id: number) {
+  // Obter usuário logado
+  const userStr = sessionStorage.getItem("user")
+  const user = userStr ? JSON.parse(userStr) : null
+  if (!user) return
 
-    if (confirm("Tem certeza que deseja excluir este pedido?")) {
-      const { error } = await supabase
-        .from("pedidos")
-        .delete()
-        .eq("id", id)
-        .eq("user_id", user.id)  // 🔥 GARANTE QUE SÓ EXCLUI SE FOR DO USUÁRIO
-      
-      if (error) {
-        alert("Erro ao excluir pedido")
-      } else {
-        alert("Pedido excluído com sucesso!")
-        carregarPedidos()
-      }
+  if (confirm("Tem certeza que deseja excluir este pedido?")) {
+    let query = supabase.from("pedidos").delete().eq("id", id)
+
+    // 🔥 Se NÃO for admin_loja nem master, só pode excluir seus próprios pedidos
+    if (user.role !== 'admin_loja' && user.role !== 'master') {
+      query = query.eq("user_id", user.id)
+    }
+
+    const { error } = await query
+    
+    if (error) {
+      console.error("Erro ao excluir pedido:", error)
+      alert("Erro ao excluir pedido")
+    } else {
+      alert("Pedido excluído com sucesso!")
+      carregarPedidos()
     }
   }
+}
 
   function editarPedido(pedido: Pedido) {
     navigate("/novo", { state: { pedido, isEditing: true } })
