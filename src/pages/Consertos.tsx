@@ -60,6 +60,15 @@ export default function Consertos() {
     comissao: "0"
   })
 
+  // 🔥 ESTADO PARA TOTAIS
+  const [totais, setTotais] = useState({
+    totalVendas: 0,
+    totalLucro: 0,
+    totalFrete: 0,
+    comissaoTotal: 0,
+    quantidade: 0
+  })
+
   // Carregar dados do usuário logado
   useEffect(() => {
     const userStr = sessionStorage.getItem("user")
@@ -260,6 +269,7 @@ export default function Consertos() {
     }
   }
 
+  // 🔥 MEMO PARA FILTRAR CONSERTOS (DEFINIDO ANTES DO USEEFFECT QUE USA ELE)
   const consertosFiltrados = useMemo(() => {
     return consertos.filter(c => {
       let match = true
@@ -276,56 +286,80 @@ export default function Consertos() {
     })
   }, [consertos, mesSelecionado, search])
 
-  const totais = useMemo(() => {
-    const totalVendas = consertosFiltrados.reduce((acc, c) => acc + c.valor_cobrado, 0)
-    const totalLucro = consertosFiltrados.reduce((acc, c) => acc + c.lucro, 0)
-    const totalFrete = consertosFiltrados.filter(c => c.frete !== "NÃO").reduce((acc, c) => {
-      const freteNum = parseFloat(c.frete.replace('R$ ', '').replace(/\./g, '').replace(',', '.'))
-      return acc + (isNaN(freteNum) ? 0 : freteNum)
-    }, 0)
-    const comissaoTotal = consertosFiltrados.reduce((acc, c) => acc + c.comissao, 0)
-    const quantidade = consertosFiltrados.length
+  // 🔥 USEEFFECT PARA CALCULAR TOTAIS (DEPOIS DE consertosFiltrados)
+  useEffect(() => {
+    async function calcularTotais() {
+      let totalVendas = 0
+      let totalLucro = 0
+      let totalFrete = 0
+      let comissaoTotal = 0
+
+      for (const conserto of consertosFiltrados) {
+        totalVendas += conserto.valor_cobrado
+        totalLucro += conserto.lucro
+        
+        if (conserto.frete !== "NÃO") {
+          const freteNum = parseFloat(conserto.frete.replace('R$ ', '').replace(/\./g, '').replace(',', '.'))
+          totalFrete += isNaN(freteNum) ? 0 : freteNum
+        }
+        
+        // Buscar a comissão percentual do técnico deste conserto
+        const { data: tecnico } = await supabase
+          .from("usuarios")
+          .select("comissao_percentual")
+          .eq("id", conserto.tecnico_id)
+          .single()
+        
+        const percentual = tecnico?.comissao_percentual || 10
+        comissaoTotal += conserto.lucro * (percentual / 100)
+      }
+      
+      setTotais({
+        totalVendas,
+        totalLucro,
+        totalFrete,
+        comissaoTotal,
+        quantidade: consertosFiltrados.length
+      })
+    }
     
-    return { totalVendas, totalLucro, totalFrete, comissaoTotal, quantidade }
+    calcularTotais()
   }, [consertosFiltrados])
 
-const handleValorCobradoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  let value = e.target.value.replace(/\D/g, '')
-  const valorCobrado = value ? parseFloat(value) / 100 : 0
-  const valorCusto = parseFloat(formData.valor_custo) || 0
-  const frete = parseFloat(formData.frete) || 0
-  
-  // 🔥 LUCRO = VALOR COBRADO - VALOR CUSTO - FRETE
-  const lucro = valorCobrado - valorCusto - frete
-  const comissao = lucro > 0 ? lucro * (comissaoPercentualUsuario / 100) : 0
+  const handleValorCobradoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, '')
+    const valorCobrado = value ? parseFloat(value) / 100 : 0
+    const valorCusto = parseFloat(formData.valor_custo) || 0
+    const frete = parseFloat(formData.frete) || 0
     
-  setFormData({
-    ...formData,
-    valor_cobrado: valorCobrado.toFixed(2),
-    lucro: lucro.toFixed(2),
-    comissao: comissao.toFixed(2)
-  })
-}
+    const lucro = valorCobrado - valorCusto - frete
+    const comissao = lucro > 0 ? lucro * (comissaoPercentualUsuario / 100) : 0
+      
+    setFormData({
+      ...formData,
+      valor_cobrado: valorCobrado.toFixed(2),
+      lucro: lucro.toFixed(2),
+      comissao: comissao.toFixed(2)
+    })
+  }
 
-const handleValorCustoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  let value = e.target.value.replace(/\D/g, '')
-  const valorCusto = value ? parseFloat(value) / 100 : 0
-  const valorCobrado = parseFloat(formData.valor_cobrado) || 0
-  const frete = parseFloat(formData.frete) || 0
-  
-  // 🔥 LUCRO = VALOR COBRADO - VALOR CUSTO - FRETE
-  const lucro = valorCobrado - valorCusto - frete
-  const comissao = lucro > 0 ? lucro * (comissaoPercentualUsuario / 100) : 0
+  const handleValorCustoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, '')
+    const valorCusto = value ? parseFloat(value) / 100 : 0
+    const valorCobrado = parseFloat(formData.valor_cobrado) || 0
+    const frete = parseFloat(formData.frete) || 0
     
-  setFormData({
-    ...formData,
-    valor_custo: valorCusto.toFixed(2),
-    lucro: lucro.toFixed(2),
-    comissao: comissao.toFixed(2)
-  })
-}
+    const lucro = valorCobrado - valorCusto - frete
+    const comissao = lucro > 0 ? lucro * (comissaoPercentualUsuario / 100) : 0
+      
+    setFormData({
+      ...formData,
+      valor_custo: valorCusto.toFixed(2),
+      lucro: lucro.toFixed(2),
+      comissao: comissao.toFixed(2)
+    })
+  }
 
-  // 🔥 Função para exibir o frete formatado no campo
   const displayFrete = () => {
     if (formData.frete === "NÃO" || !formData.frete) return ""
     const num = parseFloat(formData.frete)
@@ -333,165 +367,160 @@ const handleValorCustoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   }
 
-  // 🔥 Função para tratar a mudança do frete (mesmo padrão dos outros campos)
-const handleFreteChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  let value = e.target.value.replace(/\D/g, '')
-  let freteValue = 0
-  
-  if (value) {
-    freteValue = parseFloat(value) / 100
-    setFormData({...formData, frete: freteValue.toFixed(2)})
-  } else {
-    setFormData({...formData, frete: "NÃO"})
-    freteValue = 0
-  }
-  
-  // 🔥 Recalcular lucro e comissão quando o frete mudar
-  const valorCobrado = parseFloat(formData.valor_cobrado) || 0
-  const valorCusto = parseFloat(formData.valor_custo) || 0
-  const lucro = valorCobrado - valorCusto - freteValue
-  const comissao = lucro > 0 ? lucro * (comissaoPercentualUsuario / 100) : 0
-  
-  setFormData(prev => ({
-    ...prev,
-    lucro: lucro.toFixed(2),
-    comissao: comissao.toFixed(2)
-  }))
-}
-
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault()
-  setLoading(true)
-
-  const userStr = sessionStorage.getItem("user")
-  const user = userStr ? JSON.parse(userStr) : null
-  
-  if (!user) {
-    alert("Usuário não identificado.")
-    setLoading(false)
-    return
-  }
-
-  let userIdInt = user.id
-  let lojaId = user.loja_id
-
-  if (typeof userIdInt === 'string' && userIdInt.includes('-')) {
-    const { data: userData } = await supabase
-      .from("usuarios")
-      .select("id, loja_id")
-      .eq("email", user.email)
-      .single()
-      
-    if (userData) {
-      userIdInt = userData.id
-      lojaId = userData.loja_id
+  const handleFreteChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, '')
+    let freteValue = 0
+    
+    if (value) {
+      freteValue = parseFloat(value) / 100
+      setFormData({...formData, frete: freteValue.toFixed(2)})
+    } else {
+      setFormData({...formData, frete: "NÃO"})
+      freteValue = 0
     }
+    
+    const valorCobrado = parseFloat(formData.valor_cobrado) || 0
+    const valorCusto = parseFloat(formData.valor_custo) || 0
+    const lucro = valorCobrado - valorCusto - freteValue
+    const comissao = lucro > 0 ? lucro * (comissaoPercentualUsuario / 100) : 0
+    
+    setFormData(prev => ({
+      ...prev,
+      lucro: lucro.toFixed(2),
+      comissao: comissao.toFixed(2)
+    }))
   }
 
-  if (!lojaId) {
-    alert("Erro: Usuário não vinculado a uma loja.")
-    setLoading(false)
-    return
-  }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
 
-  const dataFormatada = new Date(formData.data).toLocaleDateString('pt-BR')
-  const valorCobrado = parseFloat(formData.valor_cobrado) || 0
-  const valorCusto = parseFloat(formData.valor_custo) || 0
-  
-  // 🔥 Obter o valor do frete (pode ser "NÃO" ou um número)
-  let freteNumerico = 0
-  let freteValue = formData.frete
-  
-  if (freteValue !== "NÃO" && freteValue && freteValue !== "") {
-    freteNumerico = parseFloat(freteValue)
-    if (!isNaN(freteNumerico) && freteNumerico > 0) {
-      freteValue = `R$ ${freteNumerico.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+    const userStr = sessionStorage.getItem("user")
+    const user = userStr ? JSON.parse(userStr) : null
+    
+    if (!user) {
+      alert("Usuário não identificado.")
+      setLoading(false)
+      return
+    }
+
+    let userIdInt = user.id
+    let lojaId = user.loja_id
+
+    if (typeof userIdInt === 'string' && userIdInt.includes('-')) {
+      const { data: userData } = await supabase
+        .from("usuarios")
+        .select("id, loja_id")
+        .eq("email", user.email)
+        .single()
+        
+      if (userData) {
+        userIdInt = userData.id
+        lojaId = userData.loja_id
+      }
+    }
+
+    if (!lojaId) {
+      alert("Erro: Usuário não vinculado a uma loja.")
+      setLoading(false)
+      return
+    }
+
+    const dataFormatada = new Date(formData.data).toLocaleDateString('pt-BR')
+    const valorCobrado = parseFloat(formData.valor_cobrado) || 0
+    const valorCusto = parseFloat(formData.valor_custo) || 0
+    
+    let freteNumerico = 0
+    let freteValue = formData.frete
+    
+    if (freteValue !== "NÃO" && freteValue && freteValue !== "") {
+      freteNumerico = parseFloat(freteValue)
+      if (!isNaN(freteNumerico) && freteNumerico > 0) {
+        freteValue = `R$ ${freteNumerico.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+      } else {
+        freteValue = "NÃO"
+        freteNumerico = 0
+      }
     } else {
       freteValue = "NÃO"
       freteNumerico = 0
     }
-  } else {
-    freteValue = "NÃO"
-    freteNumerico = 0
-  }
-  
-  // 🔥 LUCRO = VALOR COBRADO - VALOR CUSTO - FRETE
-  const lucro = valorCobrado - valorCusto - freteNumerico
+    
+    const lucro = valorCobrado - valorCusto - freteNumerico
 
-  let tecnicoId = userIdInt
-  
-  if (editandoId && (user.role === 'admin_loja' || user.role === 'master')) {
-    const { data: consertoOriginal } = await supabase
-      .from("consertos")
-      .select("tecnico_id")
-      .eq("id", editandoId)
-      .single()
-      
-    if (consertoOriginal) {
-      tecnicoId = consertoOriginal.tecnico_id
+    let tecnicoId = userIdInt
+    
+    if (editandoId && (user.role === 'admin_loja' || user.role === 'master')) {
+      const { data: consertoOriginal } = await supabase
+        .from("consertos")
+        .select("tecnico_id")
+        .eq("id", editandoId)
+        .single()
+        
+      if (consertoOriginal) {
+        tecnicoId = consertoOriginal.tecnico_id
+      }
     }
-  }
 
-  const comissaoPercentual = await getComissaoPercentual(tecnicoId)
-  const comissao = lucro > 0 ? lucro * (comissaoPercentual / 100) : 0
+    const comissaoPercentual = await getComissaoPercentual(tecnicoId)
+    const comissao = lucro > 0 ? lucro * (comissaoPercentual / 100) : 0
 
-  const consertoData = {
-    data: dataFormatada,
-    modelo: formData.modelo.toUpperCase(),
-    servico: formData.servico,
-    valor_cobrado: valorCobrado,
-    valor_custo: valorCusto,
-    frete: freteValue,
-    lucro: lucro,
-    comissao: comissao,
-    tecnico_id: tecnicoId,
-    user_id: userIdInt,
-    loja_id: lojaId
-  }
+    const consertoData = {
+      data: dataFormatada,
+      modelo: formData.modelo.toUpperCase(),
+      servico: formData.servico,
+      valor_cobrado: valorCobrado,
+      valor_custo: valorCusto,
+      frete: freteValue,
+      lucro: lucro,
+      comissao: comissao,
+      tecnico_id: tecnicoId,
+      user_id: userIdInt,
+      loja_id: lojaId
+    }
 
-  let error = null
-  
-  if (editandoId) {
-    const { error: updateError } = await supabase
-      .from("consertos")
-      .update(consertoData)
-      .eq("id", editandoId)
-    error = updateError
-  } else {
-    const { error: insertError } = await supabase
-      .from("consertos")
-      .insert([consertoData])
-    error = insertError
-  }
+    let error = null
+    
+    if (editandoId) {
+      const { error: updateError } = await supabase
+        .from("consertos")
+        .update(consertoData)
+        .eq("id", editandoId)
+      error = updateError
+    } else {
+      const { error: insertError } = await supabase
+        .from("consertos")
+        .insert([consertoData])
+      error = insertError
+    }
 
-  if (error) {
-    console.error("Erro detalhado:", error)
-    alert(`Erro ao salvar conserto: ${error.message}`)
-  } else {
-    alert(`✅ Conserto ${editandoId ? "atualizado" : "salvo"} com sucesso!`)
-    setModalAberto(false)
-    setEditandoId(null)
-    setFormData({
-      data: new Date().toISOString().split('T')[0],
-      modelo: "",
-      servico: "",
-      valor_cobrado: "",
-      valor_custo: "",
-      frete: "NÃO",
-      lucro: "0",
-      comissao: "0"
-    })
-    carregarConsertos()
+    if (error) {
+      console.error("Erro detalhado:", error)
+      alert(`Erro ao salvar conserto: ${error.message}`)
+    } else {
+      alert(`✅ Conserto ${editandoId ? "atualizado" : "salvo"} com sucesso!`)
+      setModalAberto(false)
+      setEditandoId(null)
+      setFormData({
+        data: new Date().toISOString().split('T')[0],
+        modelo: "",
+        servico: "",
+        valor_cobrado: "",
+        valor_custo: "",
+        frete: "NÃO",
+        lucro: "0",
+        comissao: "0"
+      })
+      carregarConsertos()
+    }
+    setLoading(false)
   }
-  setLoading(false)
-}
 
   const editarConserto = (conserto: Conserto) => {
     setEditandoId(conserto.id)
     const partes = conserto.data.split('/')
     const dataInput = partes.length === 3 ? `${partes[2]}-${partes[1]}-${partes[0]}` : ""
     
-    // 🔥 Converter frete para exibição no formulário
     let freteDisplay = conserto.frete
     if (freteDisplay !== "NÃO" && freteDisplay) {
       const cleanValue = freteDisplay.replace('R$ ', '').replace(/\./g, '').replace(',', '.')
@@ -916,7 +945,6 @@ const handleSubmit = async (e: React.FormEvent) => {
                 </div>
               </div>
               
-              {/* 🔥 CAMPO FRETE ATUALIZADO */}
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">FRETE</label>
                 <div className="relative">
