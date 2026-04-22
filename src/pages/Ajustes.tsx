@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { supabase } from "../lib/supabase"
 import { Save, Trash2, Upload, Building, Plus, Edit, X, Package, Truck, Tag, Check, AlertCircle, ChevronDown, ChevronUp, User, Download } from "lucide-react"
 import { getConfigLoja, updateConfigLoja } from "../services/configService"
 
@@ -358,77 +359,110 @@ export default function Ajustes() {
     }
   }
 
-  // ========== IMPORTAR BACKUP ==========
-  const importarBackup = () => {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = '.json'
-    
-    input.onchange = async (e: any) => {
-      const file = e.target.files[0]
-      if (!file) return
+// ========== IMPORTAR BACKUP (APENAS PEDIDOS E CONSERTOS) ==========
+const importarBackup = () => {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.json'
+  
+  input.onchange = async (e: any) => {
+    const file = e.target.files[0]
+    if (!file) return
 
-      setSaving(true)
+    setSaving(true)
 
-      try {
-        const reader = new FileReader()
-        reader.onload = async (event) => {
-          try {
-            const backupData = JSON.parse(event.target?.result as string)
-            
-            if (!backupData.loja_id || backupData.loja_id !== lojaId) {
-              setMensagem({ tipo: "error", texto: "Este backup pertence a outra loja. Importação cancelada." })
-              setTimeout(() => setMensagem(null), 3000)
-              setSaving(false)
-              return
-            }
-
-            if (!backupData.dados) {
-              setMensagem({ tipo: "error", texto: "Arquivo de backup inválido." })
-              setTimeout(() => setMensagem(null), 3000)
-              setSaving(false)
-              return
-            }
-
-            if (backupData.dados.fornecedores) {
-              setFornecedores(backupData.dados.fornecedores)
-              sessionStorage.setItem(`fornecedores_${lojaId}`, JSON.stringify(backupData.dados.fornecedores))
-            }
-
-            if (backupData.dados.marcas) {
-              setMarcas(backupData.dados.marcas)
-              sessionStorage.setItem(`marcas_${lojaId}`, JSON.stringify(backupData.dados.marcas))
-            }
-
-            if (backupData.dados.condicoes) {
-              setCondicoes(backupData.dados.condicoes)
-              sessionStorage.setItem(`condicoes_${lojaId}`, JSON.stringify(backupData.dados.condicoes))
-            }
-
-            setMensagem({ tipo: "success", texto: "Backup restaurado com sucesso!" })
-            
-            setTimeout(() => {
-              window.location.reload()
-            }, 1500)
-            
-          } catch (error) {
-            console.error("Erro ao processar backup:", error)
-            setMensagem({ tipo: "error", texto: "Erro ao ler o arquivo de backup. Verifique o formato." })
+    try {
+      const reader = new FileReader()
+      reader.onload = async (event) => {
+        try {
+          const backupData = JSON.parse(event.target?.result as string)
+          
+          // Validar estrutura do backup
+          if (!backupData.loja_id || backupData.loja_id !== lojaId) {
+            setMensagem({ tipo: "error", texto: "Este backup pertence a outra loja. Importação cancelada." })
             setTimeout(() => setMensagem(null), 3000)
             setSaving(false)
+            return
           }
+
+          // Confirmar antes de restaurar
+          if (!confirm(`Isso irá substituir todos os ${backupData.pedidos?.length || 0} pedidos e ${backupData.consertos?.length || 0} consertos da sua loja. Continuar?`)) {
+            setSaving(false)
+            return
+          }
+
+          // Restaurar pedidos (substituir todos)
+          if (backupData.pedidos && backupData.pedidos.length > 0) {
+            // Primeiro, deletar todos os pedidos existentes da loja
+            const { error: deleteError } = await supabase
+              .from("pedidos")
+              .delete()
+              .eq("loja_id", lojaId)
+            
+            if (deleteError) throw deleteError
+
+            // Inserir os pedidos do backup
+            for (const pedido of backupData.pedidos) {
+              // Remover o id para não causar conflito
+              delete pedido.id
+              pedido.loja_id = lojaId
+              
+              const { error: insertError } = await supabase
+                .from("pedidos")
+                .insert([pedido])
+              
+              if (insertError) console.error("Erro ao inserir pedido:", insertError)
+            }
+          }
+
+          // Restaurar consertos (substituir todos)
+          if (backupData.consertos && backupData.consertos.length > 0) {
+            // Primeiro, deletar todos os consertos existentes da loja
+            const { error: deleteError } = await supabase
+              .from("consertos")
+              .delete()
+              .eq("loja_id", lojaId)
+            
+            if (deleteError) throw deleteError
+
+            // Inserir os consertos do backup
+            for (const conserto of backupData.consertos) {
+              // Remover o id para não causar conflito
+              delete conserto.id
+              conserto.loja_id = lojaId
+              
+              const { error: insertError } = await supabase
+                .from("consertos")
+                .insert([conserto])
+              
+              if (insertError) console.error("Erro ao inserir conserto:", insertError)
+            }
+          }
+
+          setMensagem({ tipo: "success", texto: `Backup restaurado com sucesso! ${backupData.pedidos?.length || 0} pedidos e ${backupData.consertos?.length || 0} consertos.` })
+          
+          setTimeout(() => {
+            window.location.reload()
+          }, 2000)
+          
+        } catch (error) {
+          console.error("Erro ao processar backup:", error)
+          setMensagem({ tipo: "error", texto: "Erro ao ler o arquivo de backup. Verifique o formato." })
+          setTimeout(() => setMensagem(null), 3000)
+          setSaving(false)
         }
-        reader.readAsText(file)
-      } catch (error) {
-        console.error("Erro ao importar backup:", error)
-        setMensagem({ tipo: "error", texto: "Erro ao importar backup. Tente novamente." })
-        setSaving(false)
-        setTimeout(() => setMensagem(null), 3000)
       }
+      reader.readAsText(file)
+    } catch (error) {
+      console.error("Erro ao importar backup:", error)
+      setMensagem({ tipo: "error", texto: "Erro ao importar backup. Tente novamente." })
+      setSaving(false)
+      setTimeout(() => setMensagem(null), 3000)
     }
-    
-    input.click()
   }
+  
+  input.click()
+}
 
   // ========== RESETAR PADRÃO ==========
   const resetarPadrao = async () => {
