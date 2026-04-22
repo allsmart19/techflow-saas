@@ -29,7 +29,7 @@ export async function signUpWithEmail(email: string, password: string, username:
       const { data: lojaData, error: lojaError } = await supabase
         .from('lojas')
         .insert({
-          nome_loja: `${username} - TechFlow`,
+          nome_loja: `${username} - Store Tech`,
           slug: slug,
           plano: 'trial',
           ativo: true,

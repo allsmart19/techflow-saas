@@ -15,7 +15,6 @@ import AuthCallback from "./pages/AuthCallback"
 import { hasPermissao } from "./services/permissaoService"
 import { useState, useEffect } from "react"
 import AcessoBloqueado from "./pages/AcessoBloqueado"
-import ResetPassword from "./pages/ResetPassword"
 
 // Componente para rotas protegidas por permissão
 function ProtectedRoute({ children, permissao }: { children: React.ReactNode; permissao: string }) {
@@ -60,7 +59,6 @@ function App() {
       <Routes>
         {/* ROTAS PÚBLICAS (sem login) */}
         <Route path="/login" element={<Login />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/assinatura/sucesso" element={<SucessoAssinatura />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/acesso-bloqueado" element={<AcessoBloqueado />} />

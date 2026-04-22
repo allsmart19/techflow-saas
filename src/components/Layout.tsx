@@ -1,3 +1,4 @@
+import logoPadrao from "../assets/StoreTech.svg"
 import { useState, useEffect, useRef } from "react"
 import { Outlet, useNavigate, useLocation } from "react-router-dom"
 import {
@@ -23,6 +24,7 @@ import { getConfigLoja } from "../services/configService"
 import { getPermissoesUsuario, Permissoes } from "../services/permissaoService"
 import { checkAccess } from "../services/accessService"
 
+
 const todosMenuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard", permissao: "dashboard" },
   { icon: Package, label: "Pedidos", path: "/pedidos", permissao: "pedidos" },
@@ -42,7 +44,7 @@ export default function Layout() {
 
   const [collapsed, setCollapsed] = useState(false)
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
-  const [nomeLoja, setNomeLoja] = useState("TechFlow")
+  const [nomeLoja, setNomeLoja] = useState("Store Tech")
   const [menuItems, setMenuItems] = useState(todosMenuItems)
 
   const [loading, setLoading] = useState(true)
@@ -233,7 +235,7 @@ export default function Layout() {
             {!collapsed && (
               <>
                 <h2 className="text-base font-semibold text-gray-900 dark:text-white mt-1">{nomeLoja}</h2>
-                <p className="text-[10px] text-gray-500 dark:text-gray-400">Controle de Pedidos</p>
+                <p className="text-[10px] text-gray-500 dark:text-gray-400">Gestão de Pedidos e Consertos</p>
               </>
             )}
           </div>

@@ -318,11 +318,11 @@ export default function Ajustes() {
   const resetarPadrao = async () => {
     if (confirm("Isso irá restaurar todas as configurações padrão. Continuar?")) {
       setSaving(true)
-      await updateConfigLoja("TechFlow", null)
+      await updateConfigLoja("Store Tech", null)
       setPreviewLogo(null)
       setLogoUrl(null)
-      setNomeLojaTemp("TechFlow")
-      setNomeLoja("TechFlow")
+      setNomeLojaTemp("Store Tech")
+      setNomeLoja("Store Tech")
       
       const defaultFornecedores = [
         { id: 1, nome: "NEW STORE" }, { id: 2, nome: "NOVA PEÇAS" },

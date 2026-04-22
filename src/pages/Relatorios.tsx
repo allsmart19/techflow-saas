@@ -232,7 +232,7 @@ export default function Relatorios() {
     doc.rect(0, 0, 210, 35, 'F')
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(18)
-    doc.text("TechFlow", 14, 18)
+    doc.text("Store Tech", 14, 18)
     doc.setFontSize(10)
     doc.text("Relatório de Pedidos", 14, 28)
     doc.setFontSize(8)
@@ -370,7 +370,7 @@ export default function Relatorios() {
       doc.setPage(i)
       doc.setFontSize(7)
       doc.setTextColor(128, 128, 128)
-      doc.text(`TechFlow - Relatório de Pedidos - Página ${i} de ${pageCount}`, 14, doc.internal.pageSize.height - 8)
+      doc.text(`Store Tech - Relatório de Pedidos - Página ${i} de ${pageCount}`, 14, doc.internal.pageSize.height - 8)
     }
 
     const nomeArquivo = `relatorio_${tipoRelatorio}_${periodo}_${nomeFornecedor.replace(/\s/g, '_')}.pdf`
