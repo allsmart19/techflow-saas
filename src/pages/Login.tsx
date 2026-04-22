@@ -1,3 +1,4 @@
+//import logoPadrao from "../assets/Logo_Store_Tech.png"
 import logoPadrao from "../assets/Logo_Store_Tech.png"
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
@@ -277,19 +278,15 @@ const handleGoogleLogin = async () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-300 dark:from-gray-800 dark:to-gray-900">
         <div className="bg-white dark:bg-gray-800 w-full max-w-md p-6 rounded-2xl shadow-xl">
   <div className="text-center mb-4">
-    {logoUrl ? (
-      <img 
-        src={logoUrl} 
-        className="w-24 h-24 mx-auto object-contain -mt-2" 
-        alt="Logo" 
-      />
-    ) : (
-      <img 
-        src="/public/Logo_Store_Tech.png" 
-        className="w-120 h-48 mx-auto object-contain -mt-4" 
-        alt="Logo Padrão" 
-      />
-    )}
+{logoUrl ? (
+  <img src={logoUrl} className="w-24 h-24 mx-auto object-contain -mt-2" alt="Logo" />
+) : (
+  <img 
+    src={logoPadrao} 
+    className="w-24 h-24 mx-auto object-contain -mt-2" 
+    alt="Logo Padrão" 
+  />
+)}
     <h1 className="font-bold text-xl mt-1 text-gray-900 dark:text-white">{nomeLoja}</h1>
     {/*<p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Gestão de Pedidos e Consertos</p>*/}
   </div>
