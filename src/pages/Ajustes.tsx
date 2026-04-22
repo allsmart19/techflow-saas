@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { Save, Trash2, Upload, Building, Plus, Edit, X, Package, Truck, Tag, Check, AlertCircle, ChevronDown, ChevronUp, User } from "lucide-react"
+import { Save, Trash2, Upload, Building, Plus, Edit, X, Package, Truck, Tag, Check, AlertCircle, ChevronDown, ChevronUp, User, Download } from "lucide-react"
 import { getConfigLoja, updateConfigLoja } from "../services/configService"
 
 export default function Ajustes() {
@@ -314,6 +314,122 @@ export default function Ajustes() {
     }
   }
 
+  // ========== EXPORTAR BACKUP ==========
+  async function exportarBackup() {
+    if (!lojaId) {
+      setMensagem({ tipo: "error", texto: "Loja não identificada." })
+      setTimeout(() => setMensagem(null), 3000)
+      return
+    }
+
+    setSaving(true)
+
+    try {
+      const backupData = {
+        loja_id: lojaId,
+        data_exportacao: new Date().toISOString(),
+        versao: "1.0",
+        dados: {
+          fornecedores: fornecedores,
+          marcas: marcas,
+          condicoes: condicoes,
+        }
+      }
+
+      const jsonString = JSON.stringify(backupData, null, 2)
+      const blob = new Blob([jsonString], { type: "application/json" })
+      const url = URL.createObjectURL(blob)
+      
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `backup_loja_${lojaId}_${new Date().toISOString().split('T')[0]}.json`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+
+      setMensagem({ tipo: "success", texto: "Backup exportado com sucesso!" })
+    } catch (error) {
+      console.error("Erro ao exportar backup:", error)
+      setMensagem({ tipo: "error", texto: "Erro ao exportar backup. Tente novamente." })
+    } finally {
+      setSaving(false)
+      setTimeout(() => setMensagem(null), 3000)
+    }
+  }
+
+  // ========== IMPORTAR BACKUP ==========
+  const importarBackup = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.json'
+    
+    input.onchange = async (e: any) => {
+      const file = e.target.files[0]
+      if (!file) return
+
+      setSaving(true)
+
+      try {
+        const reader = new FileReader()
+        reader.onload = async (event) => {
+          try {
+            const backupData = JSON.parse(event.target?.result as string)
+            
+            if (!backupData.loja_id || backupData.loja_id !== lojaId) {
+              setMensagem({ tipo: "error", texto: "Este backup pertence a outra loja. Importação cancelada." })
+              setTimeout(() => setMensagem(null), 3000)
+              setSaving(false)
+              return
+            }
+
+            if (!backupData.dados) {
+              setMensagem({ tipo: "error", texto: "Arquivo de backup inválido." })
+              setTimeout(() => setMensagem(null), 3000)
+              setSaving(false)
+              return
+            }
+
+            if (backupData.dados.fornecedores) {
+              setFornecedores(backupData.dados.fornecedores)
+              sessionStorage.setItem(`fornecedores_${lojaId}`, JSON.stringify(backupData.dados.fornecedores))
+            }
+
+            if (backupData.dados.marcas) {
+              setMarcas(backupData.dados.marcas)
+              sessionStorage.setItem(`marcas_${lojaId}`, JSON.stringify(backupData.dados.marcas))
+            }
+
+            if (backupData.dados.condicoes) {
+              setCondicoes(backupData.dados.condicoes)
+              sessionStorage.setItem(`condicoes_${lojaId}`, JSON.stringify(backupData.dados.condicoes))
+            }
+
+            setMensagem({ tipo: "success", texto: "Backup restaurado com sucesso!" })
+            
+            setTimeout(() => {
+              window.location.reload()
+            }, 1500)
+            
+          } catch (error) {
+            console.error("Erro ao processar backup:", error)
+            setMensagem({ tipo: "error", texto: "Erro ao ler o arquivo de backup. Verifique o formato." })
+            setTimeout(() => setMensagem(null), 3000)
+            setSaving(false)
+          }
+        }
+        reader.readAsText(file)
+      } catch (error) {
+        console.error("Erro ao importar backup:", error)
+        setMensagem({ tipo: "error", texto: "Erro ao importar backup. Tente novamente." })
+        setSaving(false)
+        setTimeout(() => setMensagem(null), 3000)
+      }
+    }
+    
+    input.click()
+  }
+
   // ========== RESETAR PADRÃO ==========
   const resetarPadrao = async () => {
     if (confirm("Isso irá restaurar todas as configurações padrão. Continuar?")) {
@@ -623,6 +739,41 @@ export default function Ajustes() {
               </div>
             )}
           </div>
+
+          {/* Botões de Backup e Restauração - APENAS PARA ADMIN */}
+          {isAdmin && (
+            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-xl p-4 border border-emerald-200 dark:border-emerald-800">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+                    <Download className="w-4 h-4" />
+                    Backup e Restauração
+                  </h3>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                    Exporte seus dados para um arquivo de backup ou importe um backup existente.
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={exportarBackup}
+                    disabled={saving}
+                    className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:shadow-lg transition flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <Download className="w-4 h-4" />
+                    {saving ? "Exportando..." : "Exportar Backup"}
+                  </button>
+                  <button
+                    onClick={importarBackup}
+                    disabled={saving}
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:shadow-lg transition flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <Upload className="w-4 h-4" />
+                    {saving ? "Importando..." : "Importar Backup"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Restaurar Padrão - APENAS PARA ADMIN */}
           {isAdmin && (
