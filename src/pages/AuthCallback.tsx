@@ -12,12 +12,12 @@ export default function AuthCallback() {
       try {
         console.log("🔍 Processando callback do Google...")
         
-        // Obter a sessão atual do Supabase
+        // 🔥 IMPORTANTE: Aguardar a sessão ser estabelecida
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
         if (sessionError) {
           console.error("❌ Erro ao obter sessão:", sessionError)
-          navigate('/login', { replace: true })
+          window.location.href = '/login'
           return
         }
 
@@ -25,7 +25,7 @@ export default function AuthCallback() {
 
         if (!user) {
           console.error("❌ Nenhum usuário encontrado na sessão")
-          navigate('/login', { replace: true })
+          window.location.href = '/login'
           return
         }
 
@@ -40,7 +40,7 @@ export default function AuthCallback() {
 
         if (fetchError) {
           console.error("❌ Erro ao buscar usuário:", fetchError)
-          navigate('/login', { replace: true })
+          window.location.href = '/login'
           return
         }
 
@@ -70,7 +70,7 @@ export default function AuthCallback() {
 
           if (insertError) {
             console.error("❌ Erro ao criar usuário:", insertError)
-            navigate('/login', { replace: true })
+            window.location.href = '/login'
             return
           }
 
@@ -94,18 +94,19 @@ export default function AuthCallback() {
         // Salvar no sessionStorage
         sessionStorage.setItem('user', JSON.stringify(userData))
         
-        // 🔥 REDIRECIONAMENTO DIRETO (sem timeout desnecessário)
         console.log("🚀 Redirecionando para dashboard...", userData)
+        
+        // 🔥 FORÇAR REDIRECIONAMENTO ABSOLUTO
         window.location.href = '/dashboard'
         
       } catch (err) {
         console.error("❌ Erro inesperado:", err)
-        navigate('/login', { replace: true })
+        window.location.href = '/login'
       }
     }
 
     handleCallback()
-  }, [navigate])
+  }, [])
 
   return (
     <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">
