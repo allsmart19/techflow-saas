@@ -220,162 +220,211 @@ export default function Relatorios() {
     })
   }
 
-  function gerarPDF() {
-    const doc = new jsPDF()
-    const periodo = tipoRelatorio === "mensal" ? mesSelecionado : anoSelecionado
-    const nomeFornecedor = fornecedorSelecionado && fornecedorSelecionado !== "todos" && fornecedorSelecionado !== "" 
-      ? fornecedorSelecionado 
-      : "Todos os fornecedores"
-    const dataAtual = new Date().toLocaleDateString('pt-BR')
+async function gerarPDF() {
+  // 🔥 BUSCAR NOME DA LOJA
+  let nomeLoja = "Store Tech"
+  
+  try {
+    const userStr = sessionStorage.getItem("user")
+    const user = userStr ? JSON.parse(userStr) : null
+    
+    if (user && user.id) {
+      // Buscar loja_id do usuário
+      const { data: userData } = await supabase
+        .from("usuarios")
+        .select("loja_id")
+        .eq("id", user.id)
+        .single()
+      
+      if (userData && userData.loja_id) {
+        // Buscar nome da loja na tabela config_loja
+        const { data: configData } = await supabase
+          .from("config_loja")
+          .select("nome_loja")
+          .eq("loja_id", userData.loja_id)
+          .single()
+        
+        if (configData && configData.nome_loja) {
+          nomeLoja = configData.nome_loja
+        } else {
+          // Fallback: buscar da tabela lojas
+          const { data: lojaData } = await supabase
+            .from("lojas")
+            .select("nome_loja")
+            .eq("id", userData.loja_id)
+            .single()
+          
+          if (lojaData && lojaData.nome_loja) {
+            nomeLoja = lojaData.nome_loja
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Erro ao buscar nome da loja:", error)
+  }
 
-    doc.setFillColor(139, 92, 246)
-    doc.rect(0, 0, 210, 35, 'F')
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(18)
-    doc.text("Store Tech", 14, 18)
+  const doc = new jsPDF()
+  const periodo = tipoRelatorio === "mensal" ? mesSelecionado : anoSelecionado
+  const nomeFornecedor = fornecedorSelecionado && fornecedorSelecionado !== "todos" && fornecedorSelecionado !== "" 
+    ? fornecedorSelecionado 
+    : "Todos os fornecedores"
+  const dataAtual = new Date().toLocaleDateString('pt-BR')
+
+  // Cabeçalho principal
+  doc.setFillColor(139, 92, 246)
+  doc.rect(0, 0, 210, 35, 'F')
+  doc.setTextColor(255, 255, 255)
+  doc.setFontSize(18)
+  doc.text(nomeLoja, 14, 18)  // 🔥 USA O NOME DA LOJA
+  doc.setFontSize(10)
+  doc.text("Relatório de Pedidos", 14, 28)
+  doc.setFontSize(8)
+  doc.text(`Gerado em: ${dataAtual}`, 150, 28, { align: 'right' })
+
+  // Informações do Relatório
+  doc.setTextColor(0, 0, 0)
+  doc.setFillColor(245, 245, 250)
+  doc.rect(14, 45, 182, 30, 'F')
+  //doc.setDrawColor(139, 92, 246)
+  //doc.setLineWidth(0.5)
+  //doc.rect(14, 45, 182, 30)
+
+  doc.setFontSize(9)
+  doc.setFont("helvetica", 'bold')
+  doc.setTextColor(139, 92, 246)
+  doc.text("Informações do Relatório", 20, 55)
+
+  doc.setFont("helvetica", 'normal')
+  doc.setTextColor(0, 0, 0)
+  doc.setFontSize(8)
+  doc.text(`Período: ${periodo}`, 20, 65)
+  doc.text(`Tipo: ${tipoRelatorio === "mensal" ? "Relatório Mensal" : "Relatório Anual"}`, 80, 65)
+  doc.text(`Fornecedor: ${nomeFornecedor}`, 20, 72)
+
+  // Resumo do Período
+  let currentY = 88
+  doc.setFontSize(10)
+  doc.setFont("helvetica", 'bold')
+  doc.setTextColor(0, 0, 0)
+  doc.text("Resumo do Período", 14, currentY)
+
+  currentY += 6
+  doc.setFontSize(8)
+  doc.setFont("helvetica", 'normal')
+
+  doc.setFillColor(245, 245, 245)
+  doc.rect(14, currentY, 182, 8, 'F')
+  doc.text("Total de Pedidos:", 20, currentY + 5.5)
+  doc.text(`${relatorioData?.totalPedidos || 0}`, 180, currentY + 5.5, { align: 'right' })
+
+  currentY += 9
+  doc.text("Faturamento Total:", 20, currentY + 5.5)
+  doc.text(`${formatCurrency(relatorioData?.totalGeral || 0)}`, 180, currentY + 5.5, { align: 'right' })
+
+  currentY += 9
+  doc.text("Ticket Médio:", 20, currentY + 5.5)
+  doc.text(`${formatCurrency(relatorioData && relatorioData.totalPedidos > 0 ? relatorioData.totalGeral / relatorioData.totalPedidos : 0)}`, 180, currentY + 5.5, { align: 'right' })
+
+  currentY += 9
+  doc.text("Frete Total:", 20, currentY + 5.5)
+  doc.text(`${formatCurrency(relatorioData?.freteTotal || 0)}`, 180, currentY + 5.5, { align: 'right' })
+
+  // Tabela de Condições
+  currentY += 12
+  doc.setFontSize(10)
+  doc.setFont("helvetica", 'bold')
+  doc.text("Detalhamento por Condição", 14, currentY)
+
+  const tabelaCondicoes = [
+    ["Condição", "Quantidade", "Valor Total", "%"],
+    ["CONSERTO", relatorioData?.conserto.qtd.toString() || "0", formatCurrency(relatorioData?.conserto.valor || 0),
+      `${relatorioData && relatorioData.totalGeral > 0 ? ((relatorioData.conserto.valor / relatorioData.totalGeral) * 100).toFixed(1) : 0}%`],
+    ["GARANTIA", relatorioData?.garantia.qtd.toString() || "0", formatCurrency(relatorioData?.garantia.valor || 0),
+      `${relatorioData && relatorioData.totalGeral > 0 ? ((relatorioData.garantia.valor / relatorioData.totalGeral) * 100).toFixed(1) : 0}%`],
+    ["LOJA", relatorioData?.loja.qtd.toString() || "0", formatCurrency(relatorioData?.loja.valor || 0),
+      `${relatorioData && relatorioData.totalGeral > 0 ? ((relatorioData.loja.valor / relatorioData.totalGeral) * 100).toFixed(1) : 0}%`],
+    ["DEVOLUÇÃO", relatorioData?.devolucao.qtd.toString() || "0", formatCurrency(relatorioData?.devolucao.valor || 0),
+      `${relatorioData && relatorioData.totalGeral > 0 ? ((relatorioData.devolucao.valor / relatorioData.totalGeral) * 100).toFixed(1) : 0}%`],
+    ["DEVOLUÇÃO PAGA", relatorioData?.devolucaoPaga.qtd.toString() || "0", formatCurrency(relatorioData?.devolucaoPaga.valor || 0),
+      `${relatorioData && relatorioData.totalGeral > 0 ? ((relatorioData.devolucaoPaga.valor / relatorioData.totalGeral) * 100).toFixed(1) : 0}%`],
+    ["QUEBRADA", relatorioData?.quebrada.qtd.toString() || "0", formatCurrency(relatorioData?.quebrada.valor || 0),
+      `${relatorioData && relatorioData.totalGeral > 0 ? ((relatorioData.quebrada.valor / relatorioData.totalGeral) * 100).toFixed(1) : 0}%`],
+    ["TOTAL", relatorioData?.totalPedidos.toString() || "0", formatCurrency(relatorioData?.totalGeral || 0), "100%"]
+  ]
+
+  autoTable(doc, {
+    startY: currentY + 6,
+    head: [tabelaCondicoes[0]],
+    body: tabelaCondicoes.slice(1),
+    theme: 'striped',
+    headStyles: { fillColor: [139, 92, 246], textColor: 255, fontSize: 8, halign: 'center' },
+    bodyStyles: { fontSize: 7 },
+    columnStyles: {
+      0: { cellWidth: 70, halign: 'left' },
+      1: { cellWidth: 35, halign: 'center' },
+      2: { cellWidth: 50, halign: 'right' },
+      3: { cellWidth: 30, halign: 'right' }
+    },
+    margin: { left: 14, right: 14 }
+  })
+
+  let finalY = (doc as any).lastAutoTable.finalY + 8
+
+  // Lista de Pedidos do Período
+  if (pedidosFiltrados.length > 0) {
     doc.setFontSize(10)
-    doc.text("Relatório de Pedidos", 14, 28)
-    doc.setFontSize(8)
-    doc.text(`Gerado em: ${dataAtual}`, 150, 28, { align: 'right' })
-
-    doc.setTextColor(0, 0, 0)
-    doc.setFillColor(245, 245, 250)
-    doc.rect(14, 45, 182, 30, 'F')
-    doc.setDrawColor(139, 92, 246)
-    doc.setLineWidth(0.5)
-    doc.rect(14, 45, 182, 30)
-
-    doc.setFontSize(9)
     doc.setFont("helvetica", 'bold')
-    doc.setTextColor(139, 92, 246)
-    doc.text("Informações do Relatório", 20, 55)
-
+    doc.text("Pedidos no Período", 14, finalY)
+    doc.setFontSize(7)
     doc.setFont("helvetica", 'normal')
-    doc.setTextColor(0, 0, 0)
-    doc.setFontSize(8)
-    doc.text(`Período: ${periodo}`, 20, 65)
-    doc.text(`Tipo: ${tipoRelatorio === "mensal" ? "Relatório Mensal" : "Relatório Anual"}`, 80, 65)
-    doc.text(`Fornecedor: ${nomeFornecedor}`, 20, 72)
+    doc.text(`${pedidosFiltrados.length} pedidos encontrados`, 14, finalY + 5)
 
-    let currentY = 88
-    doc.setFontSize(10)
-    doc.setFont("helvetica", 'bold')
-    doc.setTextColor(0, 0, 0)
-    doc.text("Resumo do Período", 14, currentY)
-
-    currentY += 6
-    doc.setFontSize(8)
-    doc.setFont("helvetica", 'normal')
-
-    doc.setFillColor(245, 245, 245)
-    doc.rect(14, currentY, 182, 8, 'F')
-    doc.text("Total de Pedidos:", 20, currentY + 5.5)
-    doc.text(`${relatorioData?.totalPedidos || 0}`, 180, currentY + 5.5, { align: 'right' })
-
-    currentY += 9
-    doc.text("Faturamento Total:", 20, currentY + 5.5)
-    doc.text(`${formatCurrency(relatorioData?.totalGeral || 0)}`, 180, currentY + 5.5, { align: 'right' })
-
-    currentY += 9
-    doc.text("Ticket Médio:", 20, currentY + 5.5)
-    doc.text(`${formatCurrency(relatorioData && relatorioData.totalPedidos > 0 ? relatorioData.totalGeral / relatorioData.totalPedidos : 0)}`, 180, currentY + 5.5, { align: 'right' })
-
-    currentY += 9
-    doc.text("Frete Total:", 20, currentY + 5.5)
-    doc.text(`${formatCurrency(relatorioData?.freteTotal || 0)}`, 180, currentY + 5.5, { align: 'right' })
-
-    currentY += 12
-    doc.setFontSize(10)
-    doc.setFont("helvetica", 'bold')
-    doc.text("Detalhamento por Condição", 14, currentY)
-
-    const tabelaCondicoes = [
-      ["Condição", "Quantidade", "Valor Total", "%"],
-      ["CONSERTO", relatorioData?.conserto.qtd.toString() || "0", formatCurrency(relatorioData?.conserto.valor || 0),
-        `${relatorioData && relatorioData.totalGeral > 0 ? ((relatorioData.conserto.valor / relatorioData.totalGeral) * 100).toFixed(1) : 0}%`],
-      ["GARANTIA", relatorioData?.garantia.qtd.toString() || "0", formatCurrency(relatorioData?.garantia.valor || 0),
-        `${relatorioData && relatorioData.totalGeral > 0 ? ((relatorioData.garantia.valor / relatorioData.totalGeral) * 100).toFixed(1) : 0}%`],
-      ["LOJA", relatorioData?.loja.qtd.toString() || "0", formatCurrency(relatorioData?.loja.valor || 0),
-        `${relatorioData && relatorioData.totalGeral > 0 ? ((relatorioData.loja.valor / relatorioData.totalGeral) * 100).toFixed(1) : 0}%`],
-      ["DEVOLUÇÃO", relatorioData?.devolucao.qtd.toString() || "0", formatCurrency(relatorioData?.devolucao.valor || 0),
-        `${relatorioData && relatorioData.totalGeral > 0 ? ((relatorioData.devolucao.valor / relatorioData.totalGeral) * 100).toFixed(1) : 0}%`],
-      ["DEVOLUÇÃO PAGA", relatorioData?.devolucaoPaga.qtd.toString() || "0", formatCurrency(relatorioData?.devolucaoPaga.valor || 0),
-        `${relatorioData && relatorioData.totalGeral > 0 ? ((relatorioData.devolucaoPaga.valor / relatorioData.totalGeral) * 100).toFixed(1) : 0}%`],
-      ["QUEBRADA", relatorioData?.quebrada.qtd.toString() || "0", formatCurrency(relatorioData?.quebrada.valor || 0),
-        `${relatorioData && relatorioData.totalGeral > 0 ? ((relatorioData.quebrada.valor / relatorioData.totalGeral) * 100).toFixed(1) : 0}%`],
-      ["TOTAL", relatorioData?.totalPedidos.toString() || "0", formatCurrency(relatorioData?.totalGeral || 0), "100%"]
+    const tabelaPedidos = [
+      ["Data", "Código", "Modelo", "Condição", "Valor"],
+      ...pedidosFiltrados.slice(0, 25).map(p => [
+        p.data,
+        p.codigo || "-",
+        p.modelo.length > 25 ? p.modelo.substring(0, 22) + "..." : p.modelo,
+        p.condicao,
+        formatCurrency(p.valor)
+      ])
     ]
 
+    if (pedidosFiltrados.length > 25) {
+      tabelaPedidos.push(["", "", `... e mais ${pedidosFiltrados.length - 25} pedidos`, "", ""])
+    }
+
     autoTable(doc, {
-      startY: currentY + 6,
-      head: [tabelaCondicoes[0]],
-      body: tabelaCondicoes.slice(1),
+      startY: finalY + 8,
+      head: [tabelaPedidos[0]],
+      body: tabelaPedidos.slice(1),
       theme: 'striped',
-      headStyles: { fillColor: [139, 92, 246], textColor: 255, fontSize: 8, halign: 'center' },
-      bodyStyles: { fontSize: 7 },
+      headStyles: { fillColor: [139, 92, 246], textColor: 255, fontSize: 7, halign: 'center' },
+      bodyStyles: { fontSize: 6 },
       columnStyles: {
-        0: { cellWidth: 70, halign: 'left' },
-        1: { cellWidth: 35, halign: 'center' },
-        2: { cellWidth: 50, halign: 'right' },
-        3: { cellWidth: 30, halign: 'right' }
+        0: { cellWidth: 25, halign: 'left' },
+        1: { cellWidth: 30, halign: 'left' },
+        2: { cellWidth: 70, halign: 'left' },
+        3: { cellWidth: 30, halign: 'center' },
+        4: { cellWidth: 30, halign: 'right' }
       },
       margin: { left: 14, right: 14 }
     })
-
-    let finalY = (doc as any).lastAutoTable.finalY + 8
-
-    if (pedidosFiltrados.length > 0) {
-      doc.setFontSize(10)
-      doc.setFont("helvetica", 'bold')
-      doc.text("Pedidos no Período", 14, finalY)
-      doc.setFontSize(7)
-      doc.setFont("helvetica", 'normal')
-      doc.text(`${pedidosFiltrados.length} pedidos encontrados`, 14, finalY + 5)
-
-      const tabelaPedidos = [
-        ["Data", "Código", "Modelo", "Condição", "Valor"],
-        ...pedidosFiltrados.slice(0, 25).map(p => [
-          p.data,
-          p.codigo || "-",
-          p.modelo.length > 25 ? p.modelo.substring(0, 22) + "..." : p.modelo,
-          p.condicao,
-          formatCurrency(p.valor)
-        ])
-      ]
-
-      if (pedidosFiltrados.length > 25) {
-        tabelaPedidos.push(["", "", `... e mais ${pedidosFiltrados.length - 25} pedidos`, "", ""])
-      }
-
-      autoTable(doc, {
-        startY: finalY + 8,
-        head: [tabelaPedidos[0]],
-        body: tabelaPedidos.slice(1),
-        theme: 'striped',
-        headStyles: { fillColor: [139, 92, 246], textColor: 255, fontSize: 7, halign: 'center' },
-        bodyStyles: { fontSize: 6 },
-        columnStyles: {
-          0: { cellWidth: 25, halign: 'left' },
-          1: { cellWidth: 30, halign: 'left' },
-          2: { cellWidth: 70, halign: 'left' },
-          3: { cellWidth: 30, halign: 'center' },
-          4: { cellWidth: 30, halign: 'right' }
-        },
-        margin: { left: 14, right: 14 }
-      })
-    }
-
-    const pageCount = doc.getNumberOfPages()
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i)
-      doc.setFontSize(7)
-      doc.setTextColor(128, 128, 128)
-      doc.text(`Store Tech - Relatório de Pedidos - Página ${i} de ${pageCount}`, 14, doc.internal.pageSize.height - 8)
-    }
-
-    const nomeArquivo = `relatorio_${tipoRelatorio}_${periodo}_${nomeFornecedor.replace(/\s/g, '_')}.pdf`
-    doc.save(nomeArquivo)
   }
+
+  // Rodapé
+  const pageCount = doc.getNumberOfPages()
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i)
+    doc.setFontSize(7)
+    doc.setTextColor(128, 128, 128)
+    doc.text(`${nomeLoja} - Relatório de Pedidos - Página ${i} de ${pageCount}`, 14, doc.internal.pageSize.height - 8)
+  }
+
+  const nomeArquivo = `relatorio_${tipoRelatorio}_${periodo}_${nomeFornecedor.replace(/\s/g, '_')}.pdf`
+  doc.save(nomeArquivo)
+}
 
   const formatCurrency = (value: number) => {
     return `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
