@@ -12,7 +12,7 @@ export default function AuthCallback() {
       try {
         console.log("🔍 Processando callback do Google...")
         
-        // 🔥 IMPORTANTE: Aguardar a sessão ser estabelecida
+        // Obter a sessão atual do Supabase
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
         if (sessionError) {
@@ -31,7 +31,7 @@ export default function AuthCallback() {
 
         console.log("✅ Usuário autenticado:", user.email)
 
-        // Buscar ou criar usuário na tabela usuarios
+        // Buscar usuário existente
         let { data: existingUser, error: fetchError } = await supabase
           .from('usuarios')
           .select('id, username, role, loja_id, email')
@@ -45,25 +45,44 @@ export default function AuthCallback() {
         }
 
         let userData
+        let lojaId
 
         if (!existingUser) {
           console.log("📝 Criando novo usuário...")
+          
+          // 🔥 Criar uma nova loja para o usuário
           const username = user.user_metadata?.full_name || user.email?.split('@')[0] || 'user'
+          const slug = username.toLowerCase().replace(/\s/g, '-') + '-' + Date.now()
           
-          const { data: lojaPadrao } = await supabase
+          const { data: novaLoja, error: lojaError } = await supabase
             .from('lojas')
-            .select('id')
-            .eq('id', 1)
+            .insert({
+              nome_loja: `${username} - Store Tech`,
+              slug: slug,
+              plano: 'trial',
+              ativo: true,
+              created_at: new Date()
+            })
+            .select()
             .single()
-          
+
+          if (lojaError) {
+            console.error("❌ Erro ao criar loja:", lojaError)
+            window.location.href = '/login'
+            return
+          }
+
+          lojaId = novaLoja.id
+
+          // 🔥 Criar usuário como ADMIN da loja
           const { data: newUser, error: insertError } = await supabase
             .from('usuarios')
             .insert({
               username: username.toLowerCase(),
               email: user.email,
-              role: 'user',
+              role: 'admin_loja',  // 🔥 ADMIN, não user
               ativo: true,
-              loja_id: lojaPadrao?.id || 1
+              loja_id: lojaId
             })
             .select()
             .single()
@@ -96,7 +115,7 @@ export default function AuthCallback() {
         
         console.log("🚀 Redirecionando para dashboard...", userData)
         
-        // 🔥 FORÇAR REDIRECIONAMENTO ABSOLUTO
+        // Redirecionar para o dashboard
         window.location.href = '/dashboard'
         
       } catch (err) {
