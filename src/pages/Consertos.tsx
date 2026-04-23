@@ -426,7 +426,11 @@ export default function Consertos() {
       return
     }
 
-    const dataFormatada = new Date(formData.data).toLocaleDateString('pt-BR')
+    //const dataFormatada = new Date(formData.data).toLocaleDateString('pt-BR')
+    // Código corrigido
+const dataSelecionada = new Date(formData.data);
+dataSelecionada.setHours(dataSelecionada.getHours() + 3);
+const dataFormatada = dataSelecionada.toLocaleDateString('pt-BR');
     const valorCobrado = parseFloat(formData.valor_cobrado) || 0
     const valorCusto = parseFloat(formData.valor_custo) || 0
     

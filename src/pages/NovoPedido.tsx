@@ -219,7 +219,11 @@ export default function NovoPedido() {
 
     setLoading(true)
 
-    const dataFormatada = new Date(formData.data).toLocaleDateString('pt-BR')
+    //const dataFormatada = new Date(formData.data).toLocaleDateString('pt-BR')
+    // Código corrigido
+const dataSelecionada = new Date(formData.data);
+dataSelecionada.setHours(dataSelecionada.getHours() + 3);
+const dataFormatada = dataSelecionada.toLocaleDateString('pt-BR');
     const vencimentoFormatado = new Date(formData.data_vencimento).toLocaleDateString('pt-BR')
 
     const pedidoData = {
