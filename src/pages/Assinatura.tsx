@@ -201,7 +201,7 @@ export default function Assinatura() {
     setProcessando(true);
 
     try {
-      const response = await fetch("https://storetech-saas.com.br/api/create-checkout", {
+        const response = await fetch("https://www.storetech-saas.com.br/api/create-checkout", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
