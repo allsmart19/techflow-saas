@@ -290,7 +290,7 @@ const handleGoogleLogin = async () => {
     <div className="flex justify-center mb-4">
       <img 
         src="/Logo_Store_Tech.png" 
-        style={{ width: '3000px', height: '180px', objectFit: 'contain' }}
+        style={{ width: '350px', height: '180px', objectFit: 'contain' }}
         alt="Logo Padrão" 
         onError={(e) => {
           e.currentTarget.style.display = 'none';

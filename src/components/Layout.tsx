@@ -30,7 +30,7 @@ const todosMenuItems = [
   { icon: Package, label: "Pedidos", path: "/pedidos", permissao: "pedidos" },
   { icon: Wrench, label: "Consertos", path: "/consertos", permissao: "consertos" },
   { icon: Plus, label: "Novo Pedido", path: "/novo", permissao: "novo_pedido" },
-  { icon: Filter, label: "Filtros Avançados", path: "/filtros", permissao: "filtros" },
+  { icon: Filter, label: "Consulta Pedidos", path: "/filtros", permissao: "filtros" },
   { icon: BarChart3, label: "Relatórios", path: "/relatorios", permissao: "relatorios" },
   { icon: Users, label: "Usuários", path: "/usuarios", permissao: "usuarios" },
   { icon: CreditCard, label: "Assinatura", path: "/assinatura", permissao: "assinatura" },

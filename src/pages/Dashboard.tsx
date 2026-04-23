@@ -322,7 +322,7 @@ export default function Dashboard() {
     <div className="p-5 bg-gray-50 dark:bg-gray-900 min-h-screen">
       {/* Cabeçalho */}
       <div className="mb-5">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Dashboard</h1>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Dashboard Pedidos</h1>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Visão geral da sua loja</p>
       </div>
 

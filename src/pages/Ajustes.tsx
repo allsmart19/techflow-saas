@@ -315,49 +315,62 @@ export default function Ajustes() {
     }
   }
 
-  // ========== EXPORTAR BACKUP ==========
-  async function exportarBackup() {
-    if (!lojaId) {
-      setMensagem({ tipo: "error", texto: "Loja não identificada." })
-      setTimeout(() => setMensagem(null), 3000)
-      return
-    }
-
-    setSaving(true)
-
-    try {
-      const backupData = {
-        loja_id: lojaId,
-        data_exportacao: new Date().toISOString(),
-        versao: "1.0",
-        dados: {
-          fornecedores: fornecedores,
-          marcas: marcas,
-          condicoes: condicoes,
-        }
-      }
-
-      const jsonString = JSON.stringify(backupData, null, 2)
-      const blob = new Blob([jsonString], { type: "application/json" })
-      const url = URL.createObjectURL(blob)
-      
-      const link = document.createElement("a")
-      link.href = url
-      link.download = `backup_loja_${lojaId}_${new Date().toISOString().split('T')[0]}.json`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
-
-      setMensagem({ tipo: "success", texto: "Backup exportado com sucesso!" })
-    } catch (error) {
-      console.error("Erro ao exportar backup:", error)
-      setMensagem({ tipo: "error", texto: "Erro ao exportar backup. Tente novamente." })
-    } finally {
-      setSaving(false)
-      setTimeout(() => setMensagem(null), 3000)
-    }
+// ========== EXPORTAR BACKUP (APENAS PEDIDOS E CONSERTOS) ==========
+async function exportarBackup() {
+  if (!lojaId) {
+    setMensagem({ tipo: "error", texto: "Loja não identificada." })
+    setTimeout(() => setMensagem(null), 3000)
+    return
   }
+
+  setSaving(true)
+
+  try {
+    // Buscar apenas pedidos da loja
+    const { data: pedidos, error: errorPedidos } = await supabase
+      .from("pedidos")
+      .select("*")
+      .eq("loja_id", lojaId)
+
+    if (errorPedidos) throw errorPedidos
+
+    // Buscar apenas consertos da loja
+    const { data: consertos, error: errorConsertos } = await supabase
+      .from("consertos")
+      .select("*")
+      .eq("loja_id", lojaId)
+
+    if (errorConsertos) throw errorConsertos
+
+    const backupData = {
+      loja_id: lojaId,
+      data_exportacao: new Date().toISOString(),
+      versao: "1.0",
+      pedidos: pedidos || [],
+      consertos: consertos || []
+    }
+
+    const jsonString = JSON.stringify(backupData, null, 2)
+    const blob = new Blob([jsonString], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `backup_loja_${lojaId}_${new Date().toISOString().split('T')[0]}.json`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+
+    setMensagem({ tipo: "success", texto: `Backup exportado com ${pedidos?.length || 0} pedidos e ${consertos?.length || 0} consertos!` })
+  } catch (error) {
+    console.error("Erro ao exportar backup:", error)
+    setMensagem({ tipo: "error", texto: "Erro ao exportar backup. Tente novamente." })
+  } finally {
+    setSaving(false)
+    setTimeout(() => setMensagem(null), 3000)
+  }
+}
 
 // ========== IMPORTAR BACKUP (APENAS PEDIDOS E CONSERTOS) ==========
 const importarBackup = () => {
@@ -386,24 +399,39 @@ const importarBackup = () => {
           }
 
           // Confirmar antes de restaurar
-          if (!confirm(`Isso irá substituir todos os ${backupData.pedidos?.length || 0} pedidos e ${backupData.consertos?.length || 0} consertos da sua loja. Continuar?`)) {
+          const totalItens = (backupData.pedidos?.length || 0) + (backupData.consertos?.length || 0)
+          if (totalItens === 0) {
+            setMensagem({ tipo: "error", texto: "Backup não contém pedidos ou consertos para restaurar." })
+            setTimeout(() => setMensagem(null), 3000)
             setSaving(false)
             return
           }
 
-          // Restaurar pedidos (substituir todos)
-          if (backupData.pedidos && backupData.pedidos.length > 0) {
-            // Primeiro, deletar todos os pedidos existentes da loja
-            const { error: deleteError } = await supabase
-              .from("pedidos")
-              .delete()
-              .eq("loja_id", lojaId)
-            
-            if (deleteError) throw deleteError
+          if (!confirm(`⚠️ ATENÇÃO: Isso irá SUBSTITUIR todos os ${backupData.pedidos?.length || 0} pedidos e ${backupData.consertos?.length || 0} consertos atuais da sua loja. As configurações (fornecedores, marcas, condições) NÃO serão alteradas. Continuar?`)) {
+            setSaving(false)
+            return
+          }
 
-            // Inserir os pedidos do backup
+          // 1. DELETAR todos os pedidos existentes da loja
+          const { error: deletePedidosError } = await supabase
+            .from("pedidos")
+            .delete()
+            .eq("loja_id", lojaId)
+          
+          if (deletePedidosError) throw deletePedidosError
+
+          // 2. DELETAR todos os consertos existentes da loja
+          const { error: deleteConsertosError } = await supabase
+            .from("consertos")
+            .delete()
+            .eq("loja_id", lojaId)
+          
+          if (deleteConsertosError) throw deleteConsertosError
+
+          // 3. INSERIR os pedidos do backup
+          if (backupData.pedidos && backupData.pedidos.length > 0) {
             for (const pedido of backupData.pedidos) {
-              // Remover o id para não causar conflito
+              // Remover o id original para não causar conflito
               delete pedido.id
               pedido.loja_id = lojaId
               
@@ -411,23 +439,16 @@ const importarBackup = () => {
                 .from("pedidos")
                 .insert([pedido])
               
-              if (insertError) console.error("Erro ao inserir pedido:", insertError)
+              if (insertError) {
+                console.error("Erro ao inserir pedido:", insertError)
+              }
             }
           }
 
-          // Restaurar consertos (substituir todos)
+          // 4. INSERIR os consertos do backup
           if (backupData.consertos && backupData.consertos.length > 0) {
-            // Primeiro, deletar todos os consertos existentes da loja
-            const { error: deleteError } = await supabase
-              .from("consertos")
-              .delete()
-              .eq("loja_id", lojaId)
-            
-            if (deleteError) throw deleteError
-
-            // Inserir os consertos do backup
             for (const conserto of backupData.consertos) {
-              // Remover o id para não causar conflito
+              // Remover o id original para não causar conflito
               delete conserto.id
               conserto.loja_id = lojaId
               
@@ -435,7 +456,9 @@ const importarBackup = () => {
                 .from("consertos")
                 .insert([conserto])
               
-              if (insertError) console.error("Erro ao inserir conserto:", insertError)
+              if (insertError) {
+                console.error("Erro ao inserir conserto:", insertError)
+              }
             }
           }
 
