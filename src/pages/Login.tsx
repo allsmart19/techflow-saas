@@ -277,20 +277,39 @@ const handleGoogleLogin = async () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-300 dark:from-gray-800 dark:to-gray-900">
         <div className="bg-white dark:bg-gray-800 w-full max-w-md p-6 rounded-2xl shadow-xl">
-  <div className="text-center mb-4">
-{logoUrl ? (
-  <img src={logoUrl} className="w-24 h-24 mx-auto object-contain -mt-2" alt="Logo" />
-) : (
-  <img 
-    src={logoPadrao} 
-    className="w-24 h-24 mx-auto object-contain -mt-2" 
-    alt="Logo Padrão" 
-  />
-)}
-    <h1 className="font-bold text-xl mt-1 text-gray-900 dark:text-white">{nomeLoja}</h1>
-    {/*<p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Gestão de Pedidos e Consertos</p>*/}
-  </div>
-
+<div className="text-center mb-4">
+  {logoUrl ? (
+    <div className="flex justify-center mb-4">
+      <img 
+        src={logoUrl} 
+        style={{ width: '280px', height: '170px', objectFit: 'contain' }}
+        alt="Logo" 
+      />
+    </div>
+  ) : (
+    <div className="flex justify-center mb-4">
+      <img 
+        src="/Logo_Store_Tech.png" 
+        style={{ width: '3000px', height: '180px', objectFit: 'contain' }}
+        alt="Logo Padrão" 
+        onError={(e) => {
+          e.currentTarget.style.display = 'none';
+          const parent = e.currentTarget.parentElement;
+          if (parent) {
+            const fallback = document.createElement('div');
+            fallback.style.width = '120px';
+            fallback.style.height = '120px';
+            fallback.className = 'bg-gradient-to-br from-purple-500 to-indigo-500 rounded-2xl flex items-center justify-center';
+            fallback.innerHTML = '<span class="text-4xl text-white">🔧</span>';
+            parent.appendChild(fallback);
+          }
+        }}
+      />
+    </div>
+  )}
+  <h1 className="font-bold text-xl mt-1 text-gray-900 dark:text-white">{nomeLoja}</h1>
+  {/*<p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Gestão de Pedidos e Consertos</p>*/}
+</div>
         <div className="flex mb-6 border-b border-gray-200 dark:border-gray-700">
           <button
             onClick={() => setIsLogin(true)}
