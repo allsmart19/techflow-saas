@@ -94,12 +94,9 @@ export default function AuthCallback() {
         // Salvar no sessionStorage
         sessionStorage.setItem('user', JSON.stringify(userData))
         
-        // 🔥 FORÇAR UM PEQUENO ATRASO PARA GARANTIR QUE O SESSIONSTORAGE FOI ESCRITO
-        setTimeout(() => {
-          console.log("🚀 Redirecionando para dashboard...", userData)
-          //navigate('/dashboard', { replace: true })
-          window.location.href = '/dashboard'
-        }, 100)
+        // 🔥 REDIRECIONAMENTO DIRETO (sem timeout desnecessário)
+        console.log("🚀 Redirecionando para dashboard...", userData)
+        window.location.href = '/dashboard'
         
       } catch (err) {
         console.error("❌ Erro inesperado:", err)
