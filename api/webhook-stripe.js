@@ -62,8 +62,8 @@ export default async function handler(req, res) {
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
           
           const PLAN_NAMES = {
-            "price_1TLlGuGhIX9bHHYRIwSV4W4o": "Plano Pro Mensal",
-            "price_1TLlJqGhIX9bHHYRPHdBYv09": "Plano Pro Anual"
+            "price_1TPUXgGhIX9bHHYREnieAJFQ": "Plano Pro Mensal",
+            "price_1TPUWcGhIX9bHHYREEWjcpuu": "Plano Pro Anual"
           };
 
           const priceId = subscription.items.data[0]?.price?.id;

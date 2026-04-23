@@ -20,8 +20,8 @@ interface AssinaturaAtiva {
 const PLANOS = {
   monthly: {
     nome: "Plano Pro",
-    preco: 47.90,
-    priceId: "price_1TPQ0mGhIX9bHHYRkVZ73Q4X",
+    preco: 29.90,
+    priceId: "price_1TPUXgGhIX9bHHYREnieAJFQ",
     descricao: [
       'Gestão ilimitada de pedidos',
       'Relatórios avançados',
@@ -31,8 +31,8 @@ const PLANOS = {
   },
   yearly: {
     nome: "Plano Pro Anual",
-    preco: 479.00,
-    priceId: "price_1TPQ5JGhIX9bHHYRRn1Jgpin",
+    preco: 299.90,
+    priceId: "price_1TPUWcGhIX9bHHYREEWjcpuu",
     descricao: [
       'Todos os recursos do plano mensal',
       '2 meses grátis',
@@ -201,7 +201,7 @@ export default function Assinatura() {
     setProcessando(true);
 
     try {
-      const response = await fetch("https://techflow-saas-livid.vercel.app/api/create-checkout", {
+      const response = await fetch("https://storetech-saas.com.br/api/create-checkout", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
