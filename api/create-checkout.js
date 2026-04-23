@@ -49,7 +49,7 @@ export default async function handler(req, res) {
         try {
           const portalSession = await stripe.billingPortal.sessions.create({
             customer: userData.stripe_customer_id,
-            return_url: 'https://techflow-saas-livid.vercel.app/assinatura',
+            return_url: 'https://storetech-saas.com.br/assinatura',
           });
           
           console.log('✅ Portal session criada:', portalSession.url);
@@ -100,8 +100,8 @@ export default async function handler(req, res) {
       mode: 'subscription',
       customer: customer.id,
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: 'https://techflow-saas-livid.vercel.app/assinatura/sucesso',
-      cancel_url: 'https://techflow-saas-livid.vercel.app/assinatura',
+      success_url: 'https://storetech-saas.com.br/assinatura/sucesso',
+      cancel_url: 'https://storetech-saas.com.br/assinatura',
       metadata: { userId: userId.toString() },
       client_reference_id: userId.toString(),
       subscription_data: {
