@@ -20,8 +20,8 @@ interface AssinaturaAtiva {
 const PLANOS = {
   monthly: {
     nome: "Plano Pro",
-    preco: 29.90,
-    priceId: "price_1TLlGuGhIX9bHHYRIwSV4W4o",
+    preco: 47.90,
+    priceId: "price_1TPQ0mGhIX9bHHYRkVZ73Q4X",
     descricao: [
       'Gestão ilimitada de pedidos',
       'Relatórios avançados',
@@ -31,8 +31,8 @@ const PLANOS = {
   },
   yearly: {
     nome: "Plano Pro Anual",
-    preco: 299.90,
-    priceId: "price_1TLlJqGhIX9bHHYRPHdBYv09",
+    preco: 479.00,
+    priceId: "price_1TPQ5JGhIX9bHHYRRn1Jgpin",
     descricao: [
       'Todos os recursos do plano mensal',
       '2 meses grátis',
