@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react"
-import { Search, Filter, Download, Loader2, X, TrendingUp, Calculator } from "lucide-react"
 import { supabase } from "../lib/supabase"
+import jsPDF from "jspdf"
+import autoTable from "jspdf-autotable"
+import { Search, Filter, Download, Loader2, X, TrendingUp, Calculator, FileText } from "lucide-react"
 
 interface Pedido {
   id: number
@@ -328,25 +330,191 @@ export default function Filtros() {
     })
   }
 
-  function exportarCSV() {
-    const headers = ["DATA", "CÓDIGO", "MODELO", "FORNECEDOR", "MARCA", "VALOR", "FRETE", "CONDIÇÃO", "OBSERVAÇÕES"]
-    const rows = resultados.map(p => [
-      p.data, p.codigo || "", p.modelo, p.fornecedor, p.marca,
-      `R$ ${p.valor.toFixed(2)}`, p.frete > 0 ? `R$ ${p.frete.toFixed(2)}` : "NÃO",
-      p.condicao, p.observacoes || ""
-    ])
-    
-    const csvContent = [headers, ...rows].map(row => row.join(";")).join("\n")
-    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
-    const link = document.createElement("a")
-    const url = URL.createObjectURL(blob)
-    link.href = url
-    link.setAttribute("download", `filtros_${new Date().toISOString().split('T')[0]}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
+  
+//function gerarPDF() {
+async function gerarPDF() {
+  if (resultados.length === 0) {
+    alert("Não há dados para gerar o PDF.")
+    return
   }
+
+  // 🔥 BUSCAR NOME DA LOJA
+  let nomeLoja = "Store Tech"
+  
+  try {
+    const userStr = sessionStorage.getItem("user")
+    const user = userStr ? JSON.parse(userStr) : null
+    
+    if (user && user.id) {
+      const { data: userData } = await supabase
+        .from("usuarios")
+        .select("loja_id")
+        .eq("id", user.id)
+        .single()
+      
+      if (userData && userData.loja_id) {
+        const { data: configData } = await supabase
+          .from("config_loja")
+          .select("nome_loja")
+          .eq("loja_id", userData.loja_id)
+          .single()
+        
+        if (configData && configData.nome_loja) {
+          nomeLoja = configData.nome_loja
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Erro ao buscar nome da loja:", error)
+  }
+
+  const doc = new jsPDF()
+  const dataAtual = new Date().toLocaleDateString('pt-BR')
+  const horaAtual = new Date().toLocaleTimeString('pt-BR')
+
+  // Cabeçalho
+  doc.setFillColor(139, 92, 246)
+  doc.rect(0, 0, 210, 35, 'F')
+  doc.setTextColor(255, 255, 255)
+  doc.setFontSize(18)
+  doc.text(nomeLoja, 14, 18)
+  doc.setFontSize(10)
+  doc.text("Relatório de Filtros Avançados", 14, 28)
+  doc.setFontSize(8)
+  doc.text(`Gerado em: ${dataAtual} às ${horaAtual}`, 150, 28, { align: 'right' })
+
+  // 🔥 INFORMAÇÃO DO PERÍODO (SEM FUNDO E SEM TÍTULOS)
+  let currentY = 55
+  doc.setTextColor(0, 0, 0)
+  doc.setFontSize(9)
+  doc.setFont("helvetica", 'normal')
+  
+  if (dataInicio && dataFim) {
+    doc.text(`Período: ${dataInicio} até ${dataFim}`, 14, currentY)
+    currentY += 10
+  } else if (dataInicio && !dataFim) {
+    doc.text(`Data específica: ${dataInicio}`, 14, currentY)
+    currentY += 10
+  } else if (mesSelecionado) {
+    doc.text(`Mês/Ano: ${mesSelecionado}`, 14, currentY)
+    currentY += 10
+  }
+  
+  if (fornecedorSelecionado && fornecedorSelecionado !== "TODOS") {
+    doc.text(`Fornecedor: ${fornecedorSelecionado}`, 14, currentY)
+    currentY += 10
+  }
+  
+  if (condicaoSelecionada && condicaoSelecionada !== "TODAS") {
+    doc.text(`Condição: ${condicaoSelecionada}`, 14, currentY)
+    currentY += 10
+  }
+
+  // 🔥 RESUMO DOS TOTAIS (SEM TÍTULO)
+  currentY += 5
+  doc.setFontSize(9)
+  doc.setFont("helvetica", 'bold')
+  doc.setTextColor(0, 0, 0)
+  
+  doc.text(`Total de Pedidos: ${totais.QUANTIDADE}`, 14, currentY)
+  currentY += 7
+  doc.text(`Faturamento Total: ${formatCurrency(totais.TOTAL_NOTAS)}`, 14, currentY)
+  currentY += 7
+  doc.setFontSize(12)
+  doc.setTextColor(139, 92, 246)
+  doc.text(`Total a Pagar: ${formatCurrency(totais.TOTAL_A_PAGAR)}`, 14, currentY)
+  currentY += 10
+  
+  doc.setFontSize(9)
+  doc.setFont("helvetica", 'bold')
+  doc.setTextColor(0, 0, 0)
+
+  // Tabela de condições
+  doc.text("Detalhamento por Condição", 14, currentY)
+  currentY += 6
+
+  const tabelaCondicoes = [
+    ["Condição", "Qtd", "Valor Total"],
+    ["CONSERTO", totais.CONSERTO.qtd.toString(), formatCurrency(totais.CONSERTO.valor)],
+    ["GARANTIA", totais.GARANTIA.qtd.toString(), formatCurrency(totais.GARANTIA.valor)],
+    ["DEVOLUÇÃO", totais.DEVOLUÇÃO.qtd.toString(), formatCurrency(totais.DEVOLUÇÃO.valor)],
+    ["DEVOLUÇÃO PAGA", totais.DEVOLUÇÃO_PAGA.qtd.toString(), formatCurrency(totais.DEVOLUÇÃO_PAGA.valor)],
+    ["FRETE", totais.FRETE.qtd.toString(), formatCurrency(totais.FRETE.valor)],
+    ["LOJA", totais.LOJA.qtd.toString(), formatCurrency(totais.LOJA.valor)],
+    ["QUEBRADA", totais.QUEBRADA.qtd.toString(), formatCurrency(totais.QUEBRADA.valor)],
+    ["TOTAL", totais.QUANTIDADE.toString(), formatCurrency(totais.TOTAL_NOTAS)]
+  ]
+
+  autoTable(doc, {
+    startY: currentY,
+    head: [tabelaCondicoes[0]],
+    body: tabelaCondicoes.slice(1),
+    theme: 'striped',
+    headStyles: { fillColor: [139, 92, 246], textColor: 255, fontSize: 8, halign: 'center' },
+    bodyStyles: { fontSize: 7 },
+    columnStyles: {
+      0: { cellWidth: 80, halign: 'left' },
+      1: { cellWidth: 40, halign: 'center' },
+      2: { cellWidth: 65, halign: 'right' }
+    },
+    margin: { left: 14, right: 14 }
+  })
+
+  let finalY = (doc as any).lastAutoTable.finalY + 8
+
+  // Lista de Pedidos
+  if (resultados.length > 0) {
+    doc.setFontSize(10)
+    doc.setFont("helvetica", 'bold')
+    doc.text("Lista de Pedidos", 14, finalY)
+    doc.setFontSize(7)
+    doc.setFont("helvetica", 'normal')
+    doc.text(`${resultados.length} pedidos encontrados`, 14, finalY + 5)
+
+    const tabelaPedidos = [
+      ["Data", "Código", "Modelo", "Condição", "Valor"],
+      ...resultados.slice(0, 20).map(p => [
+        p.data,
+        p.codigo || "-",
+        p.modelo.length > 25 ? p.modelo.substring(0, 22) + "..." : p.modelo,
+        p.condicao,
+        formatCurrency(p.valor)
+      ])
+    ]
+
+    if (resultados.length > 20) {
+      tabelaPedidos.push(["", "", `... e mais ${resultados.length - 20} pedidos`, "", ""])
+    }
+
+    autoTable(doc, {
+      startY: finalY + 8,
+      head: [tabelaPedidos[0]],
+      body: tabelaPedidos.slice(1),
+      theme: 'striped',
+      headStyles: { fillColor: [139, 92, 246], textColor: 255, fontSize: 7, halign: 'center' },
+      bodyStyles: { fontSize: 6 },
+      columnStyles: {
+        0: { cellWidth: 25, halign: 'left' },
+        1: { cellWidth: 30, halign: 'left' },
+        2: { cellWidth: 65, halign: 'left' },
+        3: { cellWidth: 35, halign: 'center' },
+        4: { cellWidth: 30, halign: 'right' }
+      },
+      margin: { left: 14, right: 14 }
+    })
+  }
+
+  // Rodapé
+  const pageCount = doc.getNumberOfPages()
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i)
+    doc.setFontSize(7)
+    doc.setTextColor(128, 128, 128)
+    doc.text(`${nomeLoja} - Relatório de Filtros - Página ${i} de ${pageCount}`, 14, doc.internal.pageSize.height - 8)
+  }
+
+  doc.save(`relatorio_filtros_${new Date().toISOString().split('T')[0]}.pdf`)
+}
 
   const formatCurrency = (value: number) => {
     return `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -355,7 +523,7 @@ export default function Filtros() {
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Filtros Avançados</h1>
+        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Pedidos / Fornecedor</h1>
         <p className="text-sm text-gray-500 mt-1">Filtre pedidos por período, fornecedor e condição</p>
       </div>
 
@@ -440,15 +608,15 @@ export default function Filtros() {
               <X className="w-4 h-4" />
               Limpar
             </button>
-            {resultados.length > 0 && (
-              <button
-                onClick={exportarCSV}
-                className="border border-green-500 text-green-600 px-6 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-green-50 transition"
-              >
-                <Download className="w-4 h-4" />
-                Exportar CSV
-              </button>
-            )}
+           {resultados.length > 0 && (
+  <button
+    onClick={gerarPDF}
+    className="border border-red-500 text-red-600 px-6 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-red-50 transition"
+  >
+    <FileText className="w-4 h-4" />
+    Gerar PDF
+  </button>
+)}
           </div>
         </div>
       </div>
