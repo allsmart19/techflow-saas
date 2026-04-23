@@ -49,62 +49,88 @@ export default function Ajustes() {
     }
   }
 
-  function carregarDadosLocal() {
-    const savedUser = sessionStorage.getItem("user")
-    if (savedUser) {
-      const user = JSON.parse(savedUser)
-      setUserName(user.username || "admin")
-      setUserRole(user.role || "user")
-      
-      // 🔥 Buscar loja_id do usuário
-      const lojaIdValue = user.loja_id || 1
-      setLojaId(lojaIdValue)
-      
-      // Carregar fornecedores do sessionStorage usando lojaId
-      const savedFornecedores = sessionStorage.getItem(`fornecedores_${lojaIdValue}`)
-      if (savedFornecedores) {
-        setFornecedores(JSON.parse(savedFornecedores))
-      } else {
-        const defaultFornecedores = [
-          { id: 1, nome: "NEW STORE" },
-          { id: 2, nome: "NOVA PEÇAS" },
-          { id: 3, nome: "FLORITEC" },
-          { id: 4, nome: "VITOR CAMELÃO" }
-        ]
-        setFornecedores(defaultFornecedores)
-        sessionStorage.setItem(`fornecedores_${lojaIdValue}`, JSON.stringify(defaultFornecedores))
-      }
-      
-      // Carregar marcas do sessionStorage usando lojaId
-      const savedMarcas = sessionStorage.getItem(`marcas_${lojaIdValue}`)
-      if (savedMarcas) {
-        setMarcas(JSON.parse(savedMarcas))
-      } else {
-        const defaultMarcas = [
-          { id: 1, nome: "SAMSUNG" }, { id: 2, nome: "APPLE" },
-          { id: 3, nome: "MOTOROLA" }, { id: 4, nome: "XIAOMI" },
-          { id: 5, nome: "LG" }, { id: 6, nome: "ASUS" }, { id: 7, nome: "INFINIX" }
-        ]
-        setMarcas(defaultMarcas)
-        sessionStorage.setItem(`marcas_${lojaIdValue}`, JSON.stringify(defaultMarcas))
-      }
-      
-      // Carregar condições do sessionStorage usando lojaId
-      const savedCondicoes = sessionStorage.getItem(`condicoes_${lojaIdValue}`)
-      if (savedCondicoes) {
-        setCondicoes(JSON.parse(savedCondicoes))
-      } else {
-        const defaultCondicoes = [
-          { id: 1, nome: "CONSERTO" }, { id: 2, nome: "GARANTIA" },
-          { id: 3, nome: "LOJA" }, { id: 4, nome: "DEVOLUÇÃO" },
-          { id: 5, nome: "DEVOLUÇÃO PAGA" }, { id: 6, nome: "QUEBRADA" }
-        ]
-        setCondicoes(defaultCondicoes)
-        sessionStorage.setItem(`condicoes_${lojaIdValue}`, JSON.stringify(defaultCondicoes))
-      }
-    }
+function carregarDadosLocal() {
+  const savedUser = sessionStorage.getItem("user")
+  if (savedUser) {
+    const user = JSON.parse(savedUser)
+    setUserName(user.username || "admin")
+    setUserRole(user.role || "user")
+    
+    // 🔥 Buscar loja_id do usuário (importante para o isolamento)
+    const lojaIdValue = user.loja_id || 1
+    setLojaId(lojaIdValue)
+    
+    // 🔥 SEMPRE buscar do Supabase, NÃO do sessionStorage antigo
+    // Isso garante que cada loja tenha seus próprios dados
+    carregarDadosDoSupabase(lojaIdValue)
   }
+}
 
+// 🔥 NOVA FUNÇÃO: Buscar dados do Supabase (não do sessionStorage)
+async function carregarDadosDoSupabase(lojaIdValue: number) {
+  // Buscar fornecedores da loja no Supabase
+  const { data: fornecedoresData } = await supabase
+    .from('fornecedores')
+    .select('*')
+    .eq('loja_id', lojaIdValue)
+    .order('nome')
+  
+  if (fornecedoresData && fornecedoresData.length > 0) {
+    setFornecedores(fornecedoresData)
+    sessionStorage.setItem(`fornecedores_${lojaIdValue}`, JSON.stringify(fornecedoresData))
+  } else {
+    // Dados padrão para loja nova
+    const defaultFornecedores = [
+      { id: 1, nome: "NEW STORE" },
+      { id: 2, nome: "NOVA PEÇAS" },
+      { id: 3, nome: "FLORITEC" },
+      { id: 4, nome: "VITOR CAMELÃO" }
+    ]
+    setFornecedores(defaultFornecedores)
+    sessionStorage.setItem(`fornecedores_${lojaIdValue}`, JSON.stringify(defaultFornecedores))
+  }
+  
+  // Buscar marcas da loja no Supabase
+  const { data: marcasData } = await supabase
+    .from('marcas')
+    .select('*')
+    .eq('loja_id', lojaIdValue)
+    .order('nome')
+  
+  if (marcasData && marcasData.length > 0) {
+    setMarcas(marcasData)
+    sessionStorage.setItem(`marcas_${lojaIdValue}`, JSON.stringify(marcasData))
+  } else {
+    const defaultMarcas = [
+      { id: 1, nome: "SAMSUNG" }, { id: 2, nome: "APPLE" },
+      { id: 3, nome: "MOTOROLA" }, { id: 4, nome: "XIAOMI" },
+      { id: 5, nome: "LG" }, { id: 6, nome: "ASUS" }, { id: 7, nome: "INFINIX" }
+    ]
+    setMarcas(defaultMarcas)
+    sessionStorage.setItem(`marcas_${lojaIdValue}`, JSON.stringify(defaultMarcas))
+  }
+  
+  // Buscar condições da loja no Supabase
+  const { data: condicoesData } = await supabase
+    .from('condicoes')
+    .select('*')
+    .eq('loja_id', lojaIdValue)
+    .order('nome')
+  
+  if (condicoesData && condicoesData.length > 0) {
+    setCondicoes(condicoesData)
+    sessionStorage.setItem(`condicoes_${lojaIdValue}`, JSON.stringify(condicoesData))
+  } else {
+    const defaultCondicoes = [
+      { id: 1, nome: "CONSERTO" }, { id: 2, nome: "GARANTIA" },
+      { id: 3, nome: "LOJA" }, { id: 4, nome: "DEVOLUÇÃO" },
+      { id: 5, nome: "DEVOLUÇÃO PAGA" }, { id: 6, nome: "QUEBRADA" }
+    ]
+    setCondicoes(defaultCondicoes)
+    sessionStorage.setItem(`condicoes_${lojaIdValue}`, JSON.stringify(defaultCondicoes))
+  }
+}
+  
   // ========== FUNÇÕES DE LOGO E NOME ==========
   const handleLogoUpload = (event: any) => {
     const file = event.target.files?.[0]
