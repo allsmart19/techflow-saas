@@ -150,30 +150,40 @@ async function cadastrarUsuario(e: React.FormEvent) {
 
   try {
     // Obter a loja_id do usuário logado (admin)
-    const { data: adminData, error: adminError } = await supabase
-      .from("usuarios")
-      .select("loja_id")
-      .eq("id", userLogado?.id)
-      .single()
+// Obter a loja_id do usuário logado (admin)
+const { data: adminData, error: adminError } = await supabase
+  .from("usuarios")
+  .select("loja_id")
+  .eq("id", userLogado?.id)
+  .single()
 
-    if (adminError || !adminData?.loja_id) {
-      setMensagem({ tipo: "error", texto: "Administrador não possui loja vinculada!" })
-      setSaving(false)
-      setTimeout(() => setMensagem(null), 3000)
-      return
-    }
+if (adminError || !adminData?.loja_id) {
+  setMensagem({ tipo: "error", texto: "Administrador não possui loja vinculada!" })
+  setSaving(false)
+  setTimeout(() => setMensagem(null), 3000)
+  return
+}
 
-    const lojaId = adminData.loja_id
-    const tecnicoEmail = `${novoUsername.toLowerCase()}@tecnicotech.com`
+const lojaId = adminData.loja_id
 
-    // Criar usuário no Supabase Auth
-    const { error: authError } = await supabase.auth.signUp({
-      email: tecnicoEmail,
-      password: novaSenha,
-      options: {
-        data: { username: novoUsername.toLowerCase() }
-      }
-    })
+// 🔥 USERNAME ÚNICO POR LOJA (ex: tecnico1_loja1)
+const usernameUnico = `${novoUsername.toLowerCase()}_loja${lojaId}`
+
+// 🔥 EMAIL ÚNICO GLOBALMENTE (timestamp + loja_id + username)
+const timestamp = Date.now()
+const tecnicoEmail = `${novoUsername.toLowerCase()}_loja${lojaId}_${timestamp}@tecnicotech.com`
+
+console.log("📧 Email gerado:", tecnicoEmail)
+console.log("👤 Username gerado:", usernameUnico)
+
+// Criar usuário no Supabase Auth
+const { error: authError } = await supabase.auth.signUp({
+  email: tecnicoEmail,
+  password: novaSenha,
+  options: {
+    data: { username: novoUsername.toLowerCase() }
+  }
+})
 
     if (authError) {
       setMensagem({ tipo: "error", texto: authError.message })
@@ -199,15 +209,16 @@ async function cadastrarUsuario(e: React.FormEvent) {
     }
 
     // Inserir na tabela usuarios com a loja_id correta
-    const { error: insertError } = await supabase.from("usuarios").insert({
-      username: novoUsername.toLowerCase(),
-      email: tecnicoEmail,
-      role: novaRole,
-      comissao_percentual: 10,
-      ativo: true,
-      loja_id: lojaId,
-      permissoes: permissoes
-    })
+// Inserir na tabela usuarios com o username único
+const { error: insertError } = await supabase.from("usuarios").insert({
+  username: usernameUnico,  // 🔥 USA O USERNAME ÚNICO POR LOJA
+  email: tecnicoEmail,
+  role: novaRole,
+  comissao_percentual: 10,
+  ativo: true,
+  loja_id: lojaId,
+  permissoes: permissoes
+})
 
     if (insertError) {
       setMensagem({ tipo: "error", texto: insertError.message })
@@ -226,12 +237,8 @@ async function cadastrarUsuario(e: React.FormEvent) {
   setTimeout(() => setMensagem(null), 3000)
 }
 
-// =========================
+
 // RESETAR SENHA (VIA API)
-// =========================
-// =========================
-// RESETAR SENHA (VIA API)
-// =========================
 async function resetarSenha() {
   if (!usuarioSelecionado) return;
 
