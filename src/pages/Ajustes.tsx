@@ -49,88 +49,80 @@ export default function Ajustes() {
     }
   }
 
-function carregarDadosLocal() {
-  const savedUser = sessionStorage.getItem("user")
-  if (savedUser) {
-    const user = JSON.parse(savedUser)
-    setUserName(user.username || "admin")
-    setUserRole(user.role || "user")
-    
-    // 🔥 Buscar loja_id do usuário (importante para o isolamento)
-    const lojaIdValue = user.loja_id || 1
-    setLojaId(lojaIdValue)
-    
-    // 🔥 SEMPRE buscar do Supabase, NÃO do sessionStorage antigo
-    // Isso garante que cada loja tenha seus próprios dados
-    carregarDadosDoSupabase(lojaIdValue)
+  function carregarDadosLocal() {
+    const savedUser = sessionStorage.getItem("user")
+    if (savedUser) {
+      const user = JSON.parse(savedUser)
+      setUserName(user.username || "admin")
+      setUserRole(user.role || "user")
+      
+      // 🔥 CONVERTER loja_id PARA NÚMERO (evitar UUID)
+      let lojaIdValue = user.loja_id
+      if (typeof lojaIdValue === 'string' && lojaIdValue.includes('-')) {
+        // Se for UUID, buscar o loja_id correto do Supabase
+        supabase
+          .from('usuarios')
+          .select('loja_id')
+          .eq('email', user.email)
+          .single()
+          .then(({ data }) => {
+            const idNumerico = data?.loja_id || 1
+            setLojaId(Number(idNumerico))
+            carregarDadosDoSupabase(Number(idNumerico))
+          })
+      } else {
+        setLojaId(Number(lojaIdValue) || 1)
+        carregarDadosDoSupabase(Number(lojaIdValue) || 1)
+      }
+    }
   }
-}
 
-// 🔥 NOVA FUNÇÃO: Buscar dados do Supabase (não do sessionStorage)
+  // 🔥 Função para buscar dados do Supabase (garantia de dados limpos)
+// 🔥 SUBSTITUA A FUNÇÃO carregarDadosDoSupabase POR ESTA VERSÃO
 async function carregarDadosDoSupabase(lojaIdValue: number) {
-  // Buscar fornecedores da loja no Supabase
-  const { data: fornecedoresData } = await supabase
+  // Buscar fornecedores direto do Supabase (ignorando cache)
+  const { data: fornecedoresData, error: errF } = await supabase
     .from('fornecedores')
     .select('*')
     .eq('loja_id', lojaIdValue)
     .order('nome')
   
-  if (fornecedoresData && fornecedoresData.length > 0) {
+  if (errF) {
+    console.error("Erro ao buscar fornecedores:", errF)
+  } else if (fornecedoresData) {
     setFornecedores(fornecedoresData)
     sessionStorage.setItem(`fornecedores_${lojaIdValue}`, JSON.stringify(fornecedoresData))
-  } else {
-    // Dados padrão para loja nova
-    const defaultFornecedores = [
-      { id: 1, nome: "NEW STORE" },
-      { id: 2, nome: "NOVA PEÇAS" },
-      { id: 3, nome: "FLORITEC" },
-      { id: 4, nome: "VITOR CAMELÃO" }
-    ]
-    setFornecedores(defaultFornecedores)
-    sessionStorage.setItem(`fornecedores_${lojaIdValue}`, JSON.stringify(defaultFornecedores))
   }
   
-  // Buscar marcas da loja no Supabase
-  const { data: marcasData } = await supabase
+  // Buscar marcas
+  const { data: marcasData, error: errM } = await supabase
     .from('marcas')
     .select('*')
     .eq('loja_id', lojaIdValue)
     .order('nome')
   
-  if (marcasData && marcasData.length > 0) {
+  if (errM) {
+    console.error("Erro ao buscar marcas:", errM)
+  } else if (marcasData) {
     setMarcas(marcasData)
     sessionStorage.setItem(`marcas_${lojaIdValue}`, JSON.stringify(marcasData))
-  } else {
-    const defaultMarcas = [
-      { id: 1, nome: "SAMSUNG" }, { id: 2, nome: "APPLE" },
-      { id: 3, nome: "MOTOROLA" }, { id: 4, nome: "XIAOMI" },
-      { id: 5, nome: "LG" }, { id: 6, nome: "ASUS" }, { id: 7, nome: "INFINIX" }
-    ]
-    setMarcas(defaultMarcas)
-    sessionStorage.setItem(`marcas_${lojaIdValue}`, JSON.stringify(defaultMarcas))
   }
   
-  // Buscar condições da loja no Supabase
-  const { data: condicoesData } = await supabase
+  // Buscar condições
+  const { data: condicoesData, error: errC } = await supabase
     .from('condicoes')
     .select('*')
     .eq('loja_id', lojaIdValue)
     .order('nome')
   
-  if (condicoesData && condicoesData.length > 0) {
+  if (errC) {
+    console.error("Erro ao buscar condições:", errC)
+  } else if (condicoesData) {
     setCondicoes(condicoesData)
     sessionStorage.setItem(`condicoes_${lojaIdValue}`, JSON.stringify(condicoesData))
-  } else {
-    const defaultCondicoes = [
-      { id: 1, nome: "CONSERTO" }, { id: 2, nome: "GARANTIA" },
-      { id: 3, nome: "LOJA" }, { id: 4, nome: "DEVOLUÇÃO" },
-      { id: 5, nome: "DEVOLUÇÃO PAGA" }, { id: 6, nome: "QUEBRADA" }
-    ]
-    setCondicoes(defaultCondicoes)
-    sessionStorage.setItem(`condicoes_${lojaIdValue}`, JSON.stringify(defaultCondicoes))
   }
 }
-  
+
   // ========== FUNÇÕES DE LOGO E NOME ==========
   const handleLogoUpload = (event: any) => {
     const file = event.target.files?.[0]
@@ -200,26 +192,95 @@ async function carregarDadosDoSupabase(lojaIdValue: number) {
     }
   }
 
-  // ========== FORNECEDORES ==========
-  const adicionarFornecedor = () => {
-    if (novoFornecedor.trim()) {
-      const novo = { id: Date.now(), nome: novoFornecedor.toUpperCase() }
-      const novosFornecedores = [...fornecedores, novo]
+  // ========== FUNÇÕES AUXILIARES PARA RECARREGAR DADOS ==========
+async function carregarFornecedores(lojaIdValue: number) {
+  console.log("🔄 Recarregando fornecedores da loja:", lojaIdValue);
+  
+  const { data, error } = await supabase
+    .from('fornecedores')
+    .select('*')
+    .eq('loja_id', lojaIdValue)
+    .order('nome');
+  
+  if (error) {
+    console.error("❌ Erro ao recarregar:", error);
+  } else if (data) {
+    console.log(`✅ ${data.length} fornecedores carregados`);
+    setFornecedores(data);
+    sessionStorage.setItem(`fornecedores_${lojaIdValue}`, JSON.stringify(data));
+  }
+}
+
+async function carregarMarcas(lojaIdValue: number) {
+  const { data, error } = await supabase
+    .from('marcas')
+    .select('*')
+    .eq('loja_id', lojaIdValue)
+    .order('nome')
+  
+  if (!error && data) {
+    setMarcas(data)
+    sessionStorage.setItem(`marcas_${lojaIdValue}`, JSON.stringify(data))
+  }
+}
+
+async function carregarCondicoes(lojaIdValue: number) {
+  const { data, error } = await supabase
+    .from('condicoes')
+    .select('*')
+    .eq('loja_id', lojaIdValue)
+    .order('nome')
+  
+  if (!error && data) {
+    setCondicoes(data)
+    sessionStorage.setItem(`condicoes_${lojaIdValue}`, JSON.stringify(data))
+  }
+}
+
+// ========== FORNECEDORES ==========
+const adicionarFornecedor = async () => {
+  if (novoFornecedor.trim()) {
+    const novo = { 
+      nome: novoFornecedor.toUpperCase(),
+      loja_id: Number(lojaId)
+    }
+    
+    const { data, error } = await supabase
+      .from('fornecedores')
+      .insert([novo])
+      .select()
+    
+    if (error) {
+      console.error("Erro ao adicionar fornecedor:", error)
+      setMensagem({ tipo: "error", texto: "Erro ao adicionar fornecedor!" })
+    } else if (data && data[0]) {
+      const novosFornecedores = [...fornecedores, data[0]]
       setFornecedores(novosFornecedores)
       sessionStorage.setItem(`fornecedores_${lojaId}`, JSON.stringify(novosFornecedores))
       setNovoFornecedor("")
       setMensagem({ tipo: "success", texto: "Fornecedor adicionado!" })
-      setTimeout(() => setMensagem(null), 3000)
     }
+    setTimeout(() => setMensagem(null), 3000)
   }
+}
 
-  const editarFornecedor = (fornecedor: any) => {
-    setEditandoFornecedor(fornecedor)
-    setNovoFornecedor(fornecedor.nome)
-  }
+const editarFornecedor = (fornecedor: any) => {
+  setEditandoFornecedor(fornecedor)
+  setNovoFornecedor(fornecedor.nome)
+}
 
-  const salvarEdicaoFornecedor = () => {
-    if (editandoFornecedor && novoFornecedor.trim()) {
+const salvarEdicaoFornecedor = async () => {
+  if (editandoFornecedor && novoFornecedor.trim()) {
+    const { error } = await supabase
+      .from('fornecedores')
+      .update({ nome: novoFornecedor.toUpperCase() })
+      .eq('id', editandoFornecedor.id)
+      .eq('loja_id', Number(lojaId))
+    
+    if (error) {
+      console.error("Erro ao atualizar fornecedor:", error)
+      setMensagem({ tipo: "error", texto: "Erro ao atualizar fornecedor!" })
+    } else {
       const novosFornecedores = fornecedores.map((f: any) => 
         f.id === editandoFornecedor.id ? { ...f, nome: novoFornecedor.toUpperCase() } : f
       )
@@ -228,45 +289,95 @@ async function carregarDadosDoSupabase(lojaIdValue: number) {
       setEditandoFornecedor(null)
       setNovoFornecedor("")
       setMensagem({ tipo: "success", texto: "Fornecedor atualizado!" })
-      setTimeout(() => setMensagem(null), 3000)
     }
+    setTimeout(() => setMensagem(null), 3000)
+  }
+}
+
+const cancelarEdicaoFornecedor = () => {
+  setEditandoFornecedor(null)
+  setNovoFornecedor("")
+}
+
+// ========== EXCLUIR FORNECEDOR (CORRIGIDO - USANDO lojaId DO ESTADO) ==========
+async function excluirFornecedor(id: number) {
+  console.log("🔍 Excluindo fornecedor - ID:", id);
+  console.log("🔍 lojaId (estado):", lojaId);
+  
+  if (!confirm("Tem certeza que deseja excluir este fornecedor?")) return
+
+  let lojaIdValue = lojaId;
+  if (!lojaIdValue || isNaN(Number(lojaIdValue))) {
+    console.error("❌ lojaId inválido:", lojaIdValue);
+    setMensagem({ tipo: "error", texto: "Erro: ID da loja inválido." });
+    setTimeout(() => setMensagem(null), 3000);
+    return;
   }
 
-  const cancelarEdicaoFornecedor = () => {
-    setEditandoFornecedor(null)
-    setNovoFornecedor("")
-  }
+  lojaIdValue = Number(lojaIdValue);
+  console.log(`🚀 Enviando DELETE para fornecedor ${id} da loja ${lojaIdValue}`);
 
-  const excluirFornecedor = (id: number) => {
-    if (confirm("Tem certeza que deseja excluir este fornecedor?")) {
-      const novosFornecedores = fornecedores.filter((f: any) => f.id !== id)
-      setFornecedores(novosFornecedores)
-      sessionStorage.setItem(`fornecedores_${lojaId}`, JSON.stringify(novosFornecedores))
-      setMensagem({ tipo: "success", texto: "Fornecedor excluído!" })
-      setTimeout(() => setMensagem(null), 3000)
+  const { error } = await supabase
+    .from('fornecedores')
+    .delete()
+    .eq('id', id)
+    .eq('loja_id', lojaIdValue);
+
+  if (error) {
+    console.error("❌ Erro detalhado:", error);
+    setMensagem({ tipo: "error", texto: `Erro: ${error.message}` });
+  } else {
+    console.log("✅ Exclusão bem-sucedida!");
+    await carregarFornecedores(lojaIdValue);
+    setMensagem({ tipo: "success", texto: "Fornecedor excluído!" });
+  }
+  setTimeout(() => setMensagem(null), 3000);
+}
+
+// ========== MARCAS ==========
+const adicionarMarca = async () => {
+  if (novaMarca.trim()) {
+    const nova = { 
+      nome: novaMarca.toUpperCase(),
+      loja_id: Number(lojaId)
     }
-  }
-
-  // ========== MARCAS ==========
-  const adicionarMarca = () => {
-    if (novaMarca.trim()) {
-      const novo = { id: Date.now(), nome: novaMarca.toUpperCase() }
-      const novasMarcas = [...marcas, novo]
+    
+    const { data, error } = await supabase
+      .from('marcas')
+      .insert([nova])
+      .select()
+    
+    if (error) {
+      console.error("Erro ao adicionar marca:", error)
+      setMensagem({ tipo: "error", texto: "Erro ao adicionar marca!" })
+    } else if (data && data[0]) {
+      const novasMarcas = [...marcas, data[0]]
       setMarcas(novasMarcas)
       sessionStorage.setItem(`marcas_${lojaId}`, JSON.stringify(novasMarcas))
       setNovaMarca("")
       setMensagem({ tipo: "success", texto: "Marca adicionada!" })
-      setTimeout(() => setMensagem(null), 3000)
     }
+    setTimeout(() => setMensagem(null), 3000)
   }
+}
 
-  const editarMarca = (marca: any) => {
-    setEditandoMarca(marca)
-    setNovaMarca(marca.nome)
-  }
+const editarMarca = (marca: any) => {
+  setEditandoMarca(marca)
+  setNovaMarca(marca.nome)
+}
 
-  const salvarEdicaoMarca = () => {
-    if (editandoMarca && novaMarca.trim()) {
+const salvarEdicaoMarca = async () => {
+  if (editandoMarca && novaMarca.trim()) {
+    const { error } = await supabase
+      .from('marcas')
+      .update({ nome: novaMarca.toUpperCase() })
+      .eq('id', editandoMarca.id)
+      .eq('loja_id', Number(lojaId))
+    
+    if (error) {
+      console.error("Erro ao atualizar marca:", error)
+      setMensagem({ tipo: "error", texto: "Erro ao atualizar marca!" })
+    } else {
       const novasMarcas = marcas.map((m: any) => 
         m.id === editandoMarca.id ? { ...m, nome: novaMarca.toUpperCase() } : m
       )
@@ -275,45 +386,94 @@ async function carregarDadosDoSupabase(lojaIdValue: number) {
       setEditandoMarca(null)
       setNovaMarca("")
       setMensagem({ tipo: "success", texto: "Marca atualizada!" })
-      setTimeout(() => setMensagem(null), 3000)
     }
+    setTimeout(() => setMensagem(null), 3000)
+  }
+}
+
+const cancelarEdicaoMarca = () => {
+  setEditandoMarca(null)
+  setNovaMarca("")
+}
+
+// ========== EXCLUIR MARCA (CORRIGIDO - USANDO lojaId DO ESTADO) ==========
+async function excluirMarca(id: number) {
+  if (!confirm("Tem certeza que deseja excluir esta marca?")) return
+
+  let lojaIdValue = lojaId;
+  if (!lojaIdValue || isNaN(Number(lojaIdValue))) {
+    console.error("❌ lojaId inválido no estado:", lojaIdValue);
+    setMensagem({ tipo: "error", texto: "Erro: ID da loja inválido. Recarregue a página." });
+    setTimeout(() => setMensagem(null), 3000);
+    return;
   }
 
-  const cancelarEdicaoMarca = () => {
-    setEditandoMarca(null)
-    setNovaMarca("")
-  }
+  lojaIdValue = Number(lojaIdValue);
+  console.log(`🔍 Excluindo marca ${id} da loja ${lojaIdValue}`);
 
-  const excluirMarca = (id: number) => {
-    if (confirm("Tem certeza que deseja excluir esta marca?")) {
-      const novasMarcas = marcas.filter((m: any) => m.id !== id)
-      setMarcas(novasMarcas)
-      sessionStorage.setItem(`marcas_${lojaId}`, JSON.stringify(novasMarcas))
-      setMensagem({ tipo: "success", texto: "Marca excluída!" })
-      setTimeout(() => setMensagem(null), 3000)
+  const { error } = await supabase
+    .from('marcas')
+    .delete()
+    .eq('id', id)
+    .eq('loja_id', lojaIdValue);
+
+  if (error) {
+    console.error("Erro detalhado ao excluir marca:", error);
+    setMensagem({ tipo: "error", texto: `Erro ao excluir marca: ${error.message}` });
+  } else {
+    const novasMarcas = marcas.filter(m => m.id !== id);
+    setMarcas(novasMarcas);
+    sessionStorage.setItem(`marcas_${lojaIdValue}`, JSON.stringify(novasMarcas));
+    setMensagem({ tipo: "success", texto: "Marca excluída!" });
+  }
+  setTimeout(() => setMensagem(null), 3000);
+}
+
+
+// ========== CONDIÇÕES ==========
+const adicionarCondicao = async () => {
+  if (novaCondicao.trim()) {
+    const nova = { 
+      nome: novaCondicao.toUpperCase(),
+      loja_id: Number(lojaId)
     }
-  }
-
-  // ========== CONDIÇÕES ==========
-  const adicionarCondicao = () => {
-    if (novaCondicao.trim()) {
-      const novo = { id: Date.now(), nome: novaCondicao.toUpperCase() }
-      const novasCondicoes = [...condicoes, novo]
+    
+    const { data, error } = await supabase
+      .from('condicoes')
+      .insert([nova])
+      .select()
+    
+    if (error) {
+      console.error("Erro ao adicionar condição:", error)
+      setMensagem({ tipo: "error", texto: "Erro ao adicionar condição!" })
+    } else if (data && data[0]) {
+      const novasCondicoes = [...condicoes, data[0]]
       setCondicoes(novasCondicoes)
       sessionStorage.setItem(`condicoes_${lojaId}`, JSON.stringify(novasCondicoes))
       setNovaCondicao("")
       setMensagem({ tipo: "success", texto: "Condição adicionada!" })
-      setTimeout(() => setMensagem(null), 3000)
     }
+    setTimeout(() => setMensagem(null), 3000)
   }
+}
 
-  const editarCondicao = (condicao: any) => {
-    setEditandoCondicao(condicao)
-    setNovaCondicao(condicao.nome)
-  }
+const editarCondicao = (condicao: any) => {
+  setEditandoCondicao(condicao)
+  setNovaCondicao(condicao.nome)
+}
 
-  const salvarEdicaoCondicao = () => {
-    if (editandoCondicao && novaCondicao.trim()) {
+const salvarEdicaoCondicao = async () => {
+  if (editandoCondicao && novaCondicao.trim()) {
+    const { error } = await supabase
+      .from('condicoes')
+      .update({ nome: novaCondicao.toUpperCase() })
+      .eq('id', editandoCondicao.id)
+      .eq('loja_id', Number(lojaId))
+    
+    if (error) {
+      console.error("Erro ao atualizar condição:", error)
+      setMensagem({ tipo: "error", texto: "Erro ao atualizar condição!" })
+    } else {
       const novasCondicoes = condicoes.map((c: any) => 
         c.id === editandoCondicao.id ? { ...c, nome: novaCondicao.toUpperCase() } : c
       )
@@ -322,196 +482,178 @@ async function carregarDadosDoSupabase(lojaIdValue: number) {
       setEditandoCondicao(null)
       setNovaCondicao("")
       setMensagem({ tipo: "success", texto: "Condição atualizada!" })
-      setTimeout(() => setMensagem(null), 3000)
     }
-  }
-
-  const cancelarEdicaoCondicao = () => {
-    setEditandoCondicao(null)
-    setNovaCondicao("")
-  }
-
-  const excluirCondicao = (id: number) => {
-    if (confirm("Tem certeza que deseja excluir esta condição?")) {
-      const novasCondicoes = condicoes.filter((c: any) => c.id !== id)
-      setCondicoes(novasCondicoes)
-      sessionStorage.setItem(`condicoes_${lojaId}`, JSON.stringify(novasCondicoes))
-      setMensagem({ tipo: "success", texto: "Condição excluída!" })
-      setTimeout(() => setMensagem(null), 3000)
-    }
-  }
-
-// ========== EXPORTAR BACKUP (APENAS PEDIDOS E CONSERTOS) ==========
-async function exportarBackup() {
-  if (!lojaId) {
-    setMensagem({ tipo: "error", texto: "Loja não identificada." })
-    setTimeout(() => setMensagem(null), 3000)
-    return
-  }
-
-  setSaving(true)
-
-  try {
-    // Buscar apenas pedidos da loja
-    const { data: pedidos, error: errorPedidos } = await supabase
-      .from("pedidos")
-      .select("*")
-      .eq("loja_id", lojaId)
-
-    if (errorPedidos) throw errorPedidos
-
-    // Buscar apenas consertos da loja
-    const { data: consertos, error: errorConsertos } = await supabase
-      .from("consertos")
-      .select("*")
-      .eq("loja_id", lojaId)
-
-    if (errorConsertos) throw errorConsertos
-
-    const backupData = {
-      loja_id: lojaId,
-      data_exportacao: new Date().toISOString(),
-      versao: "1.0",
-      pedidos: pedidos || [],
-      consertos: consertos || []
-    }
-
-    const jsonString = JSON.stringify(backupData, null, 2)
-    const blob = new Blob([jsonString], { type: "application/json" })
-    const url = URL.createObjectURL(blob)
-    
-    const link = document.createElement("a")
-    link.href = url
-    link.download = `backup_loja_${lojaId}_${new Date().toISOString().split('T')[0]}.json`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-
-    setMensagem({ tipo: "success", texto: `Backup exportado com ${pedidos?.length || 0} pedidos e ${consertos?.length || 0} consertos!` })
-  } catch (error) {
-    console.error("Erro ao exportar backup:", error)
-    setMensagem({ tipo: "error", texto: "Erro ao exportar backup. Tente novamente." })
-  } finally {
-    setSaving(false)
     setTimeout(() => setMensagem(null), 3000)
   }
 }
 
-// ========== IMPORTAR BACKUP (APENAS PEDIDOS E CONSERTOS) ==========
-const importarBackup = () => {
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = '.json'
-  
-  input.onchange = async (e: any) => {
-    const file = e.target.files[0]
-    if (!file) return
+const cancelarEdicaoCondicao = () => {
+  setEditandoCondicao(null)
+  setNovaCondicao("")
+}
+
+// ========== EXCLUIR CONDIÇÃO (CORRIGIDO - USANDO lojaId DO ESTADO) ==========
+async function excluirCondicao(id: number) {
+  if (!confirm("Tem certeza que deseja excluir esta condição?")) return
+
+  let lojaIdValue = lojaId;
+  if (!lojaIdValue || isNaN(Number(lojaIdValue))) {
+    console.error("❌ lojaId inválido no estado:", lojaIdValue);
+    setMensagem({ tipo: "error", texto: "Erro: ID da loja inválido. Recarregue a página." });
+    setTimeout(() => setMensagem(null), 3000);
+    return;
+  }
+
+  lojaIdValue = Number(lojaIdValue);
+  console.log(`🔍 Excluindo condição ${id} da loja ${lojaIdValue}`);
+
+  const { error } = await supabase
+    .from('condicoes')
+    .delete()
+    .eq('id', id)
+    .eq('loja_id', lojaIdValue);
+
+  if (error) {
+    console.error("Erro detalhado ao excluir condição:", error);
+    setMensagem({ tipo: "error", texto: `Erro ao excluir condição: ${error.message}` });
+  } else {
+    const novasCondicoes = condicoes.filter(c => c.id !== id);
+    setCondicoes(novasCondicoes);
+    sessionStorage.setItem(`condicoes_${lojaIdValue}`, JSON.stringify(novasCondicoes));
+    setMensagem({ tipo: "success", texto: "Condição excluída!" });
+  }
+  setTimeout(() => setMensagem(null), 3000);
+}
+
+  // ========== EXPORTAR BACKUP ==========
+  async function exportarBackup() {
+    if (!lojaId) {
+      setMensagem({ tipo: "error", texto: "Loja não identificada." })
+      setTimeout(() => setMensagem(null), 3000)
+      return
+    }
 
     setSaving(true)
 
     try {
-      const reader = new FileReader()
-      reader.onload = async (event) => {
-        try {
-          const backupData = JSON.parse(event.target?.result as string)
-          
-          // Validar estrutura do backup
-          if (!backupData.loja_id || backupData.loja_id !== lojaId) {
-            setMensagem({ tipo: "error", texto: "Este backup pertence a outra loja. Importação cancelada." })
-            setTimeout(() => setMensagem(null), 3000)
-            setSaving(false)
-            return
-          }
+      const { data: pedidos, error: errorPedidos } = await supabase
+        .from("pedidos")
+        .select("*")
+        .eq("loja_id", lojaId)
 
-          // Confirmar antes de restaurar
-          const totalItens = (backupData.pedidos?.length || 0) + (backupData.consertos?.length || 0)
-          if (totalItens === 0) {
-            setMensagem({ tipo: "error", texto: "Backup não contém pedidos ou consertos para restaurar." })
-            setTimeout(() => setMensagem(null), 3000)
-            setSaving(false)
-            return
-          }
+      if (errorPedidos) throw errorPedidos
 
-          if (!confirm(`⚠️ ATENÇÃO: Isso irá SUBSTITUIR todos os ${backupData.pedidos?.length || 0} pedidos e ${backupData.consertos?.length || 0} consertos atuais da sua loja. As configurações (fornecedores, marcas, condições) NÃO serão alteradas. Continuar?`)) {
-            setSaving(false)
-            return
-          }
+      const { data: consertos, error: errorConsertos } = await supabase
+        .from("consertos")
+        .select("*")
+        .eq("loja_id", lojaId)
 
-          // 1. DELETAR todos os pedidos existentes da loja
-          const { error: deletePedidosError } = await supabase
-            .from("pedidos")
-            .delete()
-            .eq("loja_id", lojaId)
-          
-          if (deletePedidosError) throw deletePedidosError
+      if (errorConsertos) throw errorConsertos
 
-          // 2. DELETAR todos os consertos existentes da loja
-          const { error: deleteConsertosError } = await supabase
-            .from("consertos")
-            .delete()
-            .eq("loja_id", lojaId)
-          
-          if (deleteConsertosError) throw deleteConsertosError
-
-          // 3. INSERIR os pedidos do backup
-          if (backupData.pedidos && backupData.pedidos.length > 0) {
-            for (const pedido of backupData.pedidos) {
-              // Remover o id original para não causar conflito
-              delete pedido.id
-              pedido.loja_id = lojaId
-              
-              const { error: insertError } = await supabase
-                .from("pedidos")
-                .insert([pedido])
-              
-              if (insertError) {
-                console.error("Erro ao inserir pedido:", insertError)
-              }
-            }
-          }
-
-          // 4. INSERIR os consertos do backup
-          if (backupData.consertos && backupData.consertos.length > 0) {
-            for (const conserto of backupData.consertos) {
-              // Remover o id original para não causar conflito
-              delete conserto.id
-              conserto.loja_id = lojaId
-              
-              const { error: insertError } = await supabase
-                .from("consertos")
-                .insert([conserto])
-              
-              if (insertError) {
-                console.error("Erro ao inserir conserto:", insertError)
-              }
-            }
-          }
-
-          setMensagem({ tipo: "success", texto: `Backup restaurado com sucesso! ${backupData.pedidos?.length || 0} pedidos e ${backupData.consertos?.length || 0} consertos.` })
-          
-          setTimeout(() => {
-            window.location.reload()
-          }, 2000)
-          
-        } catch (error) {
-          console.error("Erro ao processar backup:", error)
-          setMensagem({ tipo: "error", texto: "Erro ao ler o arquivo de backup. Verifique o formato." })
-          setTimeout(() => setMensagem(null), 3000)
-          setSaving(false)
-        }
+      const backupData = {
+        loja_id: lojaId,
+        data_exportacao: new Date().toISOString(),
+        versao: "1.0",
+        pedidos: pedidos || [],
+        consertos: consertos || []
       }
-      reader.readAsText(file)
+
+      const jsonString = JSON.stringify(backupData, null, 2)
+      const blob = new Blob([jsonString], { type: "application/json" })
+      const url = URL.createObjectURL(blob)
+      
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `backup_loja_${lojaId}_${new Date().toISOString().split('T')[0]}.json`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+
+      setMensagem({ tipo: "success", texto: `Backup exportado com ${pedidos?.length || 0} pedidos e ${consertos?.length || 0} consertos!` })
     } catch (error) {
-      console.error("Erro ao importar backup:", error)
-      setMensagem({ tipo: "error", texto: "Erro ao importar backup. Tente novamente." })
+      console.error("Erro ao exportar backup:", error)
+      setMensagem({ tipo: "error", texto: "Erro ao exportar backup. Tente novamente." })
+    } finally {
       setSaving(false)
       setTimeout(() => setMensagem(null), 3000)
     }
   }
-  
-  input.click()
-}
+
+  // ========== IMPORTAR BACKUP ==========
+  const importarBackup = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.json'
+    
+    input.onchange = async (e: any) => {
+      const file = e.target.files[0]
+      if (!file) return
+
+      setSaving(true)
+
+      try {
+        const reader = new FileReader()
+        reader.onload = async (event) => {
+          try {
+            const backupData = JSON.parse(event.target?.result as string)
+            
+            if (!backupData.loja_id || backupData.loja_id !== lojaId) {
+              setMensagem({ tipo: "error", texto: "Este backup pertence a outra loja. Importação cancelada." })
+              setTimeout(() => setMensagem(null), 3000)
+              setSaving(false)
+              return
+            }
+
+            const totalItens = (backupData.pedidos?.length || 0) + (backupData.consertos?.length || 0)
+            if (totalItens === 0) {
+              setMensagem({ tipo: "error", texto: "Backup não contém pedidos ou consertos para restaurar." })
+              setTimeout(() => setMensagem(null), 3000)
+              setSaving(false)
+              return
+            }
+
+            if (!confirm(`⚠️ ATENÇÃO: Isso irá SUBSTITUIR todos os ${backupData.pedidos?.length || 0} pedidos e ${backupData.consertos?.length || 0} consertos atuais da sua loja. Continuar?`)) {
+              setSaving(false)
+              return
+            }
+
+            await supabase.from("pedidos").delete().eq("loja_id", lojaId)
+            await supabase.from("consertos").delete().eq("loja_id", lojaId)
+
+            if (backupData.pedidos && backupData.pedidos.length > 0) {
+              for (const pedido of backupData.pedidos) {
+                delete pedido.id
+                pedido.loja_id = lojaId
+                await supabase.from("pedidos").insert([pedido])
+              }
+            }
+
+            if (backupData.consertos && backupData.consertos.length > 0) {
+              for (const conserto of backupData.consertos) {
+                delete conserto.id
+                conserto.loja_id = lojaId
+                await supabase.from("consertos").insert([conserto])
+              }
+            }
+
+            setMensagem({ tipo: "success", texto: "Backup restaurado com sucesso!" })
+            setTimeout(() => window.location.reload(), 2000)
+          } catch (error) {
+            console.error("Erro ao processar backup:", error)
+            setMensagem({ tipo: "error", texto: "Erro ao ler o arquivo de backup." })
+            setSaving(false)
+          }
+        }
+        reader.readAsText(file)
+      } catch (error) {
+        console.error("Erro ao importar backup:", error)
+        setMensagem({ tipo: "error", texto: "Erro ao importar backup." })
+        setSaving(false)
+      }
+    }
+    input.click()
+  }
 
   // ========== RESETAR PADRÃO ==========
   const resetarPadrao = async () => {
@@ -561,7 +703,6 @@ const importarBackup = () => {
   return (
     <div className="p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
       <div className="max-w-5xl mx-auto">
-        {/* Cabeçalho com informações do usuário */}
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Configurações</h1>
@@ -585,7 +726,6 @@ const importarBackup = () => {
           </div>
         </div>
 
-        {/* Mensagem de feedback */}
         {mensagem && (
           <div className={`mb-4 p-3 rounded-xl flex items-center gap-2 text-sm ${
             mensagem.tipo === "success" 
@@ -597,9 +737,8 @@ const importarBackup = () => {
           </div>
         )}
 
-        {/* Cards de configuração */}
         <div className="space-y-4">
-          {/* Identificação da Loja - APENAS PARA ADMIN */}
+          {/* Identificação da Loja */}
           {isAdmin && (
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800">
@@ -657,10 +796,7 @@ const importarBackup = () => {
 
           {/* Fornecedores */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <button
-              onClick={() => toggleSecao("fornecedores")}
-              className="w-full px-5 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
+            <button onClick={() => toggleSecao("fornecedores")} className="w-full px-5 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
               <div className="flex items-center gap-2">
                 <Truck className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Fornecedores</h2>
@@ -713,10 +849,7 @@ const importarBackup = () => {
 
           {/* Marcas */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <button
-              onClick={() => toggleSecao("marcas")}
-              className="w-full px-5 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
+            <button onClick={() => toggleSecao("marcas")} className="w-full px-5 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
               <div className="flex items-center gap-2">
                 <Tag className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Marcas</h2>
@@ -769,10 +902,7 @@ const importarBackup = () => {
 
           {/* Condições */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <button
-              onClick={() => toggleSecao("condicoes")}
-              className="w-full px-5 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
+            <button onClick={() => toggleSecao("condicoes")} className="w-full px-5 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
               <div className="flex items-center gap-2">
                 <Package className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Condições</h2>
@@ -823,7 +953,7 @@ const importarBackup = () => {
             )}
           </div>
 
-          {/* Botões de Backup e Restauração - APENAS PARA ADMIN */}
+          {/* Backup e Restauração */}
           {isAdmin && (
             <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-xl p-4 border border-emerald-200 dark:border-emerald-800">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -837,19 +967,11 @@ const importarBackup = () => {
                   </p>
                 </div>
                 <div className="flex gap-3">
-                  <button
-                    onClick={exportarBackup}
-                    disabled={saving}
-                    className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:shadow-lg transition flex items-center gap-2 disabled:opacity-50"
-                  >
+                  <button onClick={exportarBackup} disabled={saving} className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:shadow-lg transition flex items-center gap-2 disabled:opacity-50">
                     <Download className="w-4 h-4" />
                     {saving ? "Exportando..." : "Exportar Backup"}
                   </button>
-                  <button
-                    onClick={importarBackup}
-                    disabled={saving}
-                    className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:shadow-lg transition flex items-center gap-2 disabled:opacity-50"
-                  >
+                  <button onClick={importarBackup} disabled={saving} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:shadow-lg transition flex items-center gap-2 disabled:opacity-50">
                     <Upload className="w-4 h-4" />
                     {saving ? "Importando..." : "Importar Backup"}
                   </button>
@@ -858,7 +980,7 @@ const importarBackup = () => {
             </div>
           )}
 
-          {/* Restaurar Padrão - APENAS PARA ADMIN */}
+          {/* Restaurar Padrão */}
           {isAdmin && (
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
               <div className="px-5 py-4 text-center">
