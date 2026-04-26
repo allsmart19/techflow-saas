@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
+import LandingPage from "./pages/LandingPage"
 import Login from "./pages/Login"
 import Dashboard from "./pages/Dashboard"
 import Pedidos from "./pages/Pedidos"
@@ -54,20 +55,27 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   return isAuthenticated ? children : <Navigate to="/login" />
 }
 
+// Lógica Inteligente: Redireciona usuários já logados direto pro Dashboard
+function PublicRoute({ children }: { children: React.ReactNode }) {
+  const isAuthenticated = sessionStorage.getItem("user")
+  // Se já tiver login no navegador, pula a landing page e vai pro painel
+  return isAuthenticated ? <Navigate to="/dashboard" replace /> : <>{children}</>
+}
+
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* ROTAS PÚBLICAS (sem login) */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
+        {/* ROTAS PÚBLICAS (sem login ou que escondem se já estiver logado) */}
+        <Route path="/" element={<PublicRoute><LandingPage /></PublicRoute>} />
+        <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+        <Route path="/reset-password" element={<PublicRoute><ResetPassword /></PublicRoute>} />
         <Route path="/assinatura/sucesso" element={<SucessoAssinatura />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/acesso-bloqueado" element={<AcessoBloqueado />} />
         
         {/* ROTAS PRIVADAS (com login) */}
         <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
-          <Route path="/dashboard" element={<Dashboard key="dashboard" />} />
           <Route path="/pedidos" element={
             <ProtectedRoute permissao="pedidos">
               <Pedidos key="pedidos" />
@@ -108,7 +116,7 @@ function App() {
               <Ajustes key="ajustes" />
             </ProtectedRoute>
           } />
-          <Route path="/" element={<Navigate to="/dashboard" />} />
+          <Route path="/dashboard" element={<Dashboard key="dashboard" />} />
         </Route>
       </Routes>
     </BrowserRouter>

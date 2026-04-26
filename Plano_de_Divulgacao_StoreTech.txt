@@ -1,0 +1,83 @@
+Plano de Divulgação: Store Tech
+
+Este é o plano de guerra para lotar a Store Tech de assinantes. O público-alvo são donos de laboratórios, assistências técnicas e técnicos independentes de smartphones (B2B). 
+
+O foco nas abordagens não será "você vai ficar rico", mas sim "pare de sofrer com desorganização, recupere o controle da sua bancada e pare de perder dinheiro com peças esquecidas".
+
+---
+
+## Segmentação de Público (Padrão para Meta Ads e TikTok)
+
+Na hora de configurar sua campanha no Gerenciador de Anúncios, segmente para:
+* Idade: 22 a 45 anos (maior parte dos donos/técnicos maduros).
+* Interesses Comportamentais (Meta Ads): Conserto de celular, Manutenção de computadores, Empreendedorismo de pequenos negócios, iFixit, Ferramentas de Manutenção, Eletrônica.
+* Público Lookalike (Semelhante): Se você tiver uma lista de 100+ assistências que já conhecem ou compraram de você, crie um "Lookalike de 1%" baseado nelas.
+
+---
+
+## Meta Ads (Facebook e Instagram)
+
+No Meta (Face/Insta), o formato que mais converte para SaaS B2B é o Carrossel (para mostrar telas do sistema lado a lado) e o formato Vídeo Rápido.
+
+### Criativo 1: Modelo "Dúvida vs Solução" (Imagem Simples ou Carrossel)
+Headline (Título na Imagem): Quantas garantias "de boca" e peças sem registro você atendeu esse mês?
+
+Texto do Post (Copy):
+Você trabalha 10h, 12h por dia na bancada da sua assistência, mas no fim do mês tem a sensação de que o seu lucro simplesmente sumiu? 
+
+A culpa não é da falta de clientes. A culpa é do velho caderno de papel (ou daquela planilha lenta). Peças sumindo, registros de conserto bagunçados e dificuldade para fechar a comissão da equipe e fornecedores.
+
+O Store Tech nasceu para exterminar a desorganização do seu laboratório. 
+
+- Registros automáticos de lucro por aparelho.
+- Controle das peças e fornecedores.
+- Divisão de comissão em 1 clique para os técnicos.
+
+Sem precisar instalar nada. Focado na sua bancada.
+Clique em Saiba Mais e crie sua conta GRÁTIS hoje. Teste e comprove a diferença no seu fechamento de mês.
+
+### Criativo 2: Modelo "Benefício Direto" (Foto de um Técnico com o Painel)
+Headline: Substitua o seu caderno de bancada hoje mesmo.
+
+Texto do Post (Copy):
+O fim das "surpresas" desagradáveis na sua assistência. 
+Quanto custa esquecer de cobrar a tela do fornecedor A no conserto X? Custa parte do seu lucro!
+
+O Store Tech é a plataforma online pensada EXCLUSIVAMENTE para a gestão e registros de ordens, manutenção e pedidos de peças da sua assistência.
+
+Menos tempo batendo cabeça de noite fazendo contabilidade = Mais tempo para consertar e escalar sua operação.
+
+Testar a plataforma é livre e leva apenas 2 minutinhos. 
+Clique no botão abaixo e mude a realidade do seu laboratório hoje!
+
+---
+
+## TikTok Ads / Reels (Tráfego de Vídeo)
+
+Vídeos não podem parecer comerciais engessados. Precisam parecer um conteúdo orgânico. Grave com o próprio celular!
+
+### Roteiro de Vídeo (Estilo POV / Rotina)
+
+Cena 1 (Primeiros 3s - O Gancho): 
+O técnico aparece frustrado numa bancada cheia de aparelhos abertos e com uma calculadora ou caderno de anotações todo rabiscado. 
+Grito na tela (Texto): Você é técnico de celular ou dono do seu próprio laboratório? Assiste isso!
+Áudio (Técnico fala baixo/cansado): "Como vocês fazem pra saber se estão lucrando ou só trocando dinheiro nessa bancada?"
+
+Cena 2 (Meio - O Problema e a Transição):
+Áudio: "Pois é, eu também perdia o controle de quem eu tinha comprado a peça, ou pior, fechava o mês e o dinheiro do lucro de tela e bateria evaporava, ou eu me batia pra pagar a comissão da galera."
+Corta para: A tela do celular do técnico acessando o Store Tech.
+Áudio: "Até eu descobrir o Store Tech. Clica aqui que eu vou te mostrar por dentro."
+
+Cena 3 (Apresentando o Produto):
+(Mostre a tela do Dashboard com cores roxas vibrantes e números positivos, faça isso gravando o monitor de forma real).
+Áudio: "Toda vez que uma manutenção entra, eu registro no Store Tech. Ele me fala EXATAMENTE qual a minha margem de lucro descontando a peça e ele mesmo fecha a conta da comissão do técnico..."
+
+Cena 4 (Call to Action - Chamada final):
+Áudio: "É sério, tirou um peso das minhas costas. Tô deixando o link aqui embaixo. Vocês que são donos de assistência podem cadastrar e testar de graça agora mesmo lá no botão do perfil (ou no Saiba Mais)."
+
+---
+
+## Dicas Extra de Tráfego
+
+1. Apresente as Telas de Verdade: Sempre grave ou use os "Prints Reais" (como o seu novo painel roxo e branco que acabamos de instalamos). Os donos de assistência são visuais, eles compram softwares pela interface limpa.
+2. WhatsApp Business: Coloque parte do orçamento das campanhas para "Mensagem no WhatsApp". Muitas vezes o dono da assistência é muito ocupado e prefere mandar uma mensagem de áudio tirando uma dúvida ("Serve pra duas lojas?") do que criar conta direto. E lá no X1 (venda pelo zap) você converte brutalmente!
