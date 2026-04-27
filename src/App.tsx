@@ -74,6 +74,9 @@ function App() {
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/acesso-bloqueado" element={<AcessoBloqueado />} />
         
+        {/* 🔥 ROTA DE ASSINATURA PÚBLICA (fora do Layout, para permitir acesso quando bloqueado) */}
+        <Route path="/assinatura" element={<Assinatura />} />
+        
         {/* ROTAS PRIVADAS (com login) */}
         <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
           <Route path="/pedidos" element={
@@ -104,11 +107,6 @@ function App() {
           <Route path="/usuarios" element={
             <ProtectedRoute permissao="usuarios">
               <Usuarios key="usuarios" />
-            </ProtectedRoute>
-          } />
-          <Route path="/assinatura" element={
-            <ProtectedRoute permissao="assinatura">
-              <Assinatura key="assinatura" />
             </ProtectedRoute>
           } />
           <Route path="/ajustes" element={
