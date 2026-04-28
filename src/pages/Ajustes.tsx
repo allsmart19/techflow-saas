@@ -14,6 +14,12 @@ export default function Ajustes() {
   const [userRole, setUserRole] = useState<string>("user")
   const [saving, setSaving] = useState(false)
   const [lojaId, setLojaId] = useState<number>(1)
+  
+  // Novos campos comerciais
+  const [enderecoLoja, setEnderecoLoja] = useState<string>("")
+  const [telefoneLoja, setTelefoneLoja] = useState<string>("")
+  const [cnpjLoja, setCnpjLoja] = useState<string>("")
+  const [cidadeLoja, setCidadeLoja] = useState<string>("")
 
   // Estado para controlar seções expandidas
   const [secaoAberta, setSecaoAberta] = useState<string>("fornecedores")
@@ -46,6 +52,10 @@ export default function Ajustes() {
       setNomeLojaTemp(config.nome_loja)
       setLogoUrl(config.logo_url)
       setPreviewLogo(config.logo_url)
+      setEnderecoLoja(config.endereco || "")
+      setTelefoneLoja(config.telefone || "")
+      setCnpjLoja(config.cnpj || "")
+      setCidadeLoja(config.cidade || "")
     }
   }
 
@@ -145,51 +155,40 @@ async function carregarDadosDoSupabase(lojaIdValue: number) {
     }
   }
 
-  const salvarLogo = async () => {
-    if (previewLogo) {
-      setSaving(true)
-      const success = await updateConfigLoja(nomeLojaTemp, previewLogo)
-      if (success) {
-        setLogoUrl(previewLogo)
-        setMensagem({ tipo: "success", texto: "Logo salva com sucesso!" })
-      } else {
-        setMensagem({ tipo: "error", texto: "Erro ao salvar logo!" })
-      }
-      setSaving(false)
-      setTimeout(() => setMensagem(null), 3000)
-    }
+  const removerLogo = async () => {
+    setPreviewLogo(null)
+    // Após limpar localmente, salvamos a configuração geral (que enviará logo_url como null)
+    setTimeout(() => salvarConfigGeral(), 100)
   }
 
-  const removerLogo = async () => {
+  const salvarConfigGeral = async () => {
     setSaving(true)
-    const success = await updateConfigLoja(nomeLojaTemp, null)
+    const success = await updateConfigLoja({
+      nome_loja: nomeLojaTemp,
+      logo_url: previewLogo,
+      endereco: enderecoLoja,
+      telefone: telefoneLoja,
+      cnpj: cnpjLoja,
+      cidade: cidadeLoja
+    })
+    
     if (success) {
-      setPreviewLogo(null)
-      setLogoUrl(null)
-      setMensagem({ tipo: "success", texto: "Logo removida com sucesso!" })
+      setNomeLoja(nomeLojaTemp)
+      setLogoUrl(previewLogo)
+      setMensagem({ tipo: "success", texto: "Configurações da loja salvas com sucesso!" })
     } else {
-      setMensagem({ tipo: "error", texto: "Erro ao remover logo!" })
+      setMensagem({ tipo: "error", texto: "Erro ao salvar configurações!" })
     }
     setSaving(false)
     setTimeout(() => setMensagem(null), 3000)
   }
 
+  const salvarLogo = async () => {
+    await salvarConfigGeral()
+  }
+
   const salvarNomeLoja = async () => {
-    if (nomeLojaTemp && nomeLojaTemp.trim()) {
-      setSaving(true)
-      const success = await updateConfigLoja(nomeLojaTemp, logoUrl)
-      if (success) {
-        setNomeLoja(nomeLojaTemp)
-        setMensagem({ tipo: "success", texto: "Nome da loja salvo com sucesso!" })
-      } else {
-        setMensagem({ tipo: "error", texto: "Erro ao salvar nome da loja!" })
-      }
-      setSaving(false)
-      setTimeout(() => setMensagem(null), 3000)
-    } else {
-      setMensagem({ tipo: "error", texto: "O nome da loja não pode estar vazio." })
-      setTimeout(() => setMensagem(null), 3000)
-    }
+    await salvarConfigGeral()
   }
 
   // ========== FUNÇÕES AUXILIARES PARA RECARREGAR DADOS ==========
@@ -659,11 +658,22 @@ async function excluirCondicao(id: number) {
   const resetarPadrao = async () => {
     if (confirm("Isso irá restaurar todas as configurações padrão. Continuar?")) {
       setSaving(true)
-      await updateConfigLoja("Store Tech", null)
+      await updateConfigLoja({ 
+        nome_loja: "Store Tech", 
+        logo_url: null,
+        endereco: null,
+        telefone: null,
+        cnpj: null,
+        cidade: null
+      })
       setPreviewLogo(null)
       setLogoUrl(null)
       setNomeLojaTemp("Store Tech")
       setNomeLoja("Store Tech")
+      setEnderecoLoja("")
+      setTelefoneLoja("")
+      setCnpjLoja("")
+      setCidadeLoja("")
       
       const defaultFornecedores = [
         { id: 1, nome: "NEW STORE" }, { id: 2, nome: "NOVA PEÇAS" },
@@ -776,18 +786,70 @@ async function excluirCondicao(id: number) {
                     )}
                   </div>
                   
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 uppercase tracking-wide">Nome da Loja</label>
-                    <input 
-                      type="text" 
-                      value={nomeLojaTemp || ""} 
-                      onChange={(e) => setNomeLojaTemp(e.target.value)} 
-                      className="w-full px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition bg-gray-50 dark:bg-gray-900 focus:bg-white dark:focus:bg-gray-800 text-gray-900 dark:text-white"
-                      placeholder="Digite o nome da sua loja"
-                    />
-                    <button onClick={salvarNomeLoja} disabled={saving} className="mt-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50">
-                      {saving ? "Salvando..." : "Salvar Nome"}
-                    </button>
+                  <div className="flex-1 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 uppercase tracking-wide">Nome da Loja</label>
+                        <input 
+                          type="text" 
+                          value={nomeLojaTemp || ""} 
+                          onChange={(e) => setNomeLojaTemp(e.target.value)} 
+                          className="w-full px-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition bg-gray-50 dark:bg-gray-900 focus:bg-white dark:focus:bg-gray-800 text-gray-900 dark:text-white"
+                          placeholder="Ex: Store Tech Assistência"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 uppercase tracking-wide">CNPJ (Opcional)</label>
+                        <input 
+                          type="text" 
+                          value={cnpjLoja} 
+                          onChange={(e) => setCnpjLoja(e.target.value)} 
+                          className="w-full px-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition bg-gray-50 dark:bg-gray-900 focus:bg-white dark:focus:bg-gray-800 text-gray-900 dark:text-white"
+                          placeholder="00.000.000/0000-00"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 uppercase tracking-wide">Telefone / WhatsApp</label>
+                        <input 
+                          type="text" 
+                          value={telefoneLoja} 
+                          onChange={(e) => setTelefoneLoja(e.target.value)} 
+                          className="w-full px-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition bg-gray-50 dark:bg-gray-900 focus:bg-white dark:focus:bg-gray-800 text-gray-900 dark:text-white"
+                          placeholder="(00) 00000-0000"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 uppercase tracking-wide">Cidade / UF</label>
+                        <input 
+                          type="text" 
+                          value={cidadeLoja} 
+                          onChange={(e) => setCidadeLoja(e.target.value)} 
+                          className="w-full px-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition bg-gray-50 dark:bg-gray-900 focus:bg-white dark:focus:bg-gray-800 text-gray-900 dark:text-white"
+                          placeholder="Ex: São Paulo - SP"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 uppercase tracking-wide">Endereço Completo</label>
+                      <input 
+                        type="text" 
+                        value={enderecoLoja} 
+                        onChange={(e) => setEnderecoLoja(e.target.value)} 
+                        className="w-full px-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition bg-gray-50 dark:bg-gray-900 focus:bg-white dark:focus:bg-gray-800 text-gray-900 dark:text-white"
+                        placeholder="Rua, Número, Bairro, CEP"
+                      />
+                    </div>
+
+                    <div className="flex justify-end pt-2">
+                      <button onClick={salvarConfigGeral} disabled={saving} className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg text-xs font-bold transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center gap-2">
+                        {saving ? <Plus className="w-3 h-3 animate-spin"/> : <Save className="w-3 h-3" />}
+                        {saving ? "Salvando..." : "Salvar Configurações da Loja"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

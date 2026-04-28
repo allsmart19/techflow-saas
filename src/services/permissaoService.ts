@@ -11,11 +11,14 @@ export interface Permissoes {
   usuarios?: boolean;
   assinatura?: boolean;
   ajustes?: boolean;
+  ordens_servico?: boolean;
+  clientes?: boolean;
+  estoque?: boolean;
 }
 
 export const todasPermissoes: (keyof Permissoes)[] = [
   'dashboard', 'pedidos', 'consertos', 'novo_pedido',
-  'filtros', 'relatorios', 'usuarios', 'assinatura', 'ajustes'
+  'filtros', 'relatorios', 'usuarios', 'assinatura', 'ajustes', 'ordens_servico', 'clientes', 'estoque'
 ];
 
 export async function getPermissoesUsuario(userId: number): Promise<Permissoes> {
@@ -54,7 +57,10 @@ export async function getPermissoesUsuario(userId: number): Promise<Permissoes> 
     relatorios: true,
     usuarios: false,
     assinatura: false,
-    ajustes: false
+    ajustes: false,
+    ordens_servico: true,
+    clientes: true,
+    estoque: true
   };
 }
 

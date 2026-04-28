@@ -6,6 +6,10 @@ export interface ConfigLoja {
   loja_id: number;
   nome_loja: string;
   logo_url: string | null;
+  endereco: string | null;
+  telefone: string | null;
+  cnpj: string | null;
+  cidade: string | null;
 }
 
 export async function getConfigLoja(): Promise<ConfigLoja | null> {
@@ -41,7 +45,11 @@ export async function getConfigLoja(): Promise<ConfigLoja | null> {
         const defaultConfig = {
           loja_id: lojaId,
           nome_loja: 'Sua Loja',
-          logo_url: null
+          logo_url: null,
+          endereco: null,
+          telefone: null,
+          cnpj: null,
+          cidade: null
         }
         const { error: insertError } = await supabase
           .from('config_loja')
@@ -64,7 +72,7 @@ export async function getConfigLoja(): Promise<ConfigLoja | null> {
   }
 }
 
-export async function updateConfigLoja(nome_loja: string, logo_url: string | null): Promise<boolean> {
+export async function updateConfigLoja(config: Partial<ConfigLoja>): Promise<boolean> {
   try {
     const userStr = sessionStorage.getItem("user")
     const user = userStr ? JSON.parse(userStr) : null
@@ -88,8 +96,7 @@ export async function updateConfigLoja(nome_loja: string, logo_url: string | nul
       .from('config_loja')
       .upsert({
         loja_id: lojaId,
-        nome_loja,
-        logo_url
+        ...config
       }, { onConflict: 'loja_id' })
     
     if (error) {

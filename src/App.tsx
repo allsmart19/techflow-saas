@@ -10,6 +10,10 @@ import Usuarios from "./pages/Usuarios"
 import Assinatura from "./pages/Assinatura"
 import Ajustes from "./pages/Ajustes"
 import Consertos from "./pages/Consertos"
+import OrdensServico from "./pages/OrdensServico"
+import NovaOrdemServico from "./pages/NovaOrdemServico"
+import Clientes from "./pages/Clientes"
+import Estoque from "./pages/Estoque"
 import Layout from "./components/Layout"
 import SucessoAssinatura from "./pages/SucessoAssinatura"
 import AuthCallback from "./pages/AuthCallback"
@@ -87,6 +91,26 @@ function App() {
           <Route path="/consertos" element={
             <ProtectedRoute permissao="consertos">
               <Consertos key="consertos" />
+            </ProtectedRoute>
+          } />
+          <Route path="/os" element={
+            <ProtectedRoute permissao="ordens_servico">
+              <OrdensServico key="ordens_servico" />
+            </ProtectedRoute>
+          } />
+          <Route path="/nova-os" element={
+            <ProtectedRoute permissao="ordens_servico">
+              <NovaOrdemServico key="nova_os" />
+            </ProtectedRoute>
+          } />
+          <Route path="/estoque" element={
+            <ProtectedRoute permissao="estoque">
+              <Estoque key="estoque" />
+            </ProtectedRoute>
+          } />
+          <Route path="/clientes" element={
+            <ProtectedRoute permissao="clientes">
+              <Clientes key="clientes" />
             </ProtectedRoute>
           } />
           <Route path="/filtros" element={

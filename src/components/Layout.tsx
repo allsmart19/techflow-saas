@@ -12,11 +12,15 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
   Wrench,
   Settings,
   Sun,
   Moon,
-  Loader2
+  Loader2,
+  Contact,
+  Box,
+  ShoppingBag
 } from "lucide-react"
 
 import { useTheme } from "../context/ThemeContext"
@@ -27,9 +31,12 @@ import { checkAccess } from "../services/accessService"
 
 const todosMenuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard", permissao: "dashboard" },
-  { icon: Package, label: "Pedidos", path: "/pedidos", permissao: "pedidos" },
+  { icon: Contact, label: "Clientes", path: "/clientes", permissao: "clientes" },
+  { icon: ClipboardList, label: "Ordens de Serviço", path: "/os", permissao: "ordens_servico" },
   { icon: Wrench, label: "Consertos", path: "/consertos", permissao: "consertos" },
-  { icon: Plus, label: "Novo Pedido", path: "/novo", permissao: "novo_pedido" },
+  { icon: Box, label: "Estoque de Peças", path: "/estoque", permissao: "estoque" },
+  { icon: ShoppingBag, label: "Pedidos", path: "/pedidos", permissao: "pedidos" },
+  //{ icon: Plus, label: "Novo Pedido", path: "/novo", permissao: "novo_pedido" },
   { icon: Filter, label: "Consulta Pedidos", path: "/filtros", permissao: "filtros" },
   { icon: BarChart3, label: "Relatórios", path: "/relatorios", permissao: "relatorios" },
   { icon: Users, label: "Usuários", path: "/usuarios", permissao: "usuarios" },

@@ -38,19 +38,25 @@ interface Permissoes {
   usuarios?: boolean
   assinatura?: boolean
   ajustes?: boolean
+  ordens_servico?: boolean
+  clientes?: boolean
+  estoque?: boolean
 }
 
 // Lista de todas as permissões disponíveis
 const todasPermissoes = [
   { nome: "dashboard", label: "Dashboard", rota: "/dashboard" },
-  { nome: "pedidos", label: "Pedidos", rota: "/pedidos" },
+  { nome: "clientes", label: "Clientes", rota: "/clientes" },
+  { nome: "ordens_servico", label: "Ordens de Serviço", rota: "/os" },
   { nome: "consertos", label: "Consertos", rota: "/consertos" },
+  { nome: "pedidos", label: "Pedidos", rota: "/pedidos" },
   { nome: "novo_pedido", label: "Novo Pedido", rota: "/novo" },
   { nome: "filtros", label: "Filtros Avançados", rota: "/filtros" },
   { nome: "relatorios", label: "Relatórios", rota: "/relatorios" },
   { nome: "usuarios", label: "Usuários", rota: "/usuarios" },
   { nome: "assinatura", label: "Assinatura", rota: "/assinatura" },
   { nome: "ajustes", label: "Ajustes", rota: "/ajustes" },
+  { nome: "estoque", label: "Estoque de Peças", rota: "/estoque" },
 ]
 
 export default function Usuarios() {
@@ -197,6 +203,8 @@ const { error: authError } = await supabase.auth.signUp({
     if (novaRole === "user") {
       permissoes = {
         dashboard: true,
+        clientes: true,
+        ordens_servico: true,
         pedidos: true,
         consertos: true,
         novo_pedido: true,
@@ -204,7 +212,8 @@ const { error: authError } = await supabase.auth.signUp({
         relatorios: true,
         usuarios: false,
         assinatura: false,
-        ajustes: false
+        ajustes: false,
+        estoque: true
       }
     }
 

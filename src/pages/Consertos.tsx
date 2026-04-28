@@ -1,6 +1,6 @@
 // src/pages/Consertos.tsx
-import { useState, useEffect, useMemo } from "react"
-import { useNavigate } from "react-router-dom"
+import { useState, useEffect, useMemo, useRef } from "react"
+import { useNavigate, useLocation } from "react-router-dom"
 import { supabase } from "../lib/supabase"
 import { 
   Wrench, Calendar, TrendingUp, DollarSign, 
@@ -37,6 +37,7 @@ interface Usuario {
 
 export default function Consertos() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [loading, setLoading] = useState(true)
   const [consertos, setConsertos] = useState<Conserto[]>([])
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
@@ -59,6 +60,12 @@ export default function Consertos() {
     lucro: "0",
     comissao: "0"
   })
+
+  // Tecnico override: quando o admin atribui o conserto a um técnico via OS
+  const [tecnicoIdFromOS, setTecnicoIdFromOS] = useState<number | null>(null)
+
+  // Técnico selecionado no formulário (para admin escolher a quem atribuir)
+  const [tecnicoFormId, setTecnicoFormId] = useState<string>("")
 
   // 🔥 ESTADO PARA TOTAIS
   const [totais, setTotais] = useState({
@@ -87,10 +94,31 @@ export default function Consertos() {
     }
   }, [userLogado])
 
+  const fromOSProcessado = useRef(false)
+
   useEffect(() => {
     if (userLogado?.id) {
       carregarComissaoUsuario()
       carregarConsertos()
+      
+      // Auto-open modal with OS data if redirected (só 1 vez)
+      if (location.state?.fromOS && !fromOSProcessado.current) {
+        fromOSProcessado.current = true
+        const fromOS = location.state.fromOS
+        setFormData(prev => ({
+          ...prev,
+          modelo: fromOS.modelo,
+          servico: fromOS.servico,
+          valor_cobrado: fromOS.valor_orcamento?.toFixed(2) || "0.00"
+        }))
+        // Se veio com tecnico_id (admin atribuindo a um técnico)
+        if (fromOS.tecnico_id) {
+          setTecnicoIdFromOS(fromOS.tecnico_id)
+        }
+        setModalAberto(true)
+        // Clear state to avoid reopening on reload
+        window.history.replaceState({}, document.title)
+      }
     }
   }, [userLogado, usuarioSelecionado, mesSelecionado])
 
@@ -147,13 +175,13 @@ export default function Consertos() {
       .from("usuarios")
       .select("id, username, role, comissao_percentual, ativo")
       .eq("loja_id", lojaIdFinal)
-      .eq("role", "user")
+      .eq("ativo", true) // Apenas usuários ativos
       .order("username");
 
     if (!error && data) {
       setUsuarios(data);
     } else if (error) {
-      console.error("Erro ao carregar técnicos da loja:", error);
+      console.error("Erro ao carregar colaboradores da loja:", error);
     }
   }
 
@@ -208,6 +236,8 @@ export default function Consertos() {
           .eq("role", "user")
           
         const tecnicoIds = tecnicos?.map(t => t.id) || []
+        // Incluir o próprio admin para ver seus consertos também
+        tecnicoIds.push(userIdInt)
         
         if (usuarioSelecionado && usuarioSelecionado !== "") {
           query = query.eq("tecnico_id", parseInt(usuarioSelecionado))
@@ -217,7 +247,7 @@ export default function Consertos() {
           query = query.eq("loja_id", lojaId)
         }
       } else {
-        query = query.eq("user_id", Number(userIdInt))
+        query = query.eq("tecnico_id", Number(userIdInt))
       }
 
       query = query.eq("loja_id", lojaId)
@@ -454,7 +484,17 @@ const dataFormatada = dataSelecionada.toLocaleDateString('pt-BR');
 
     let tecnicoId = userIdInt
     
-    if (editandoId && (user.role === 'admin_loja' || user.role === 'master')) {
+    // Prioridade de atribuição de técnico:
+    // 1. Se o admin selecionou um técnico no dropdown do formulário
+    if (tecnicoFormId && (user.role === 'admin_loja' || user.role === 'master')) {
+      tecnicoId = parseInt(tecnicoFormId)
+    }
+    // 2. Se veio de OS com técnico atribuído pelo admin
+    else if (tecnicoIdFromOS && !editandoId) {
+      tecnicoId = tecnicoIdFromOS
+    }
+    // 3. Se está editando, manter o técnico original
+    else if (editandoId && (user.role === 'admin_loja' || user.role === 'master')) {
       const { data: consertoOriginal } = await supabase
         .from("consertos")
         .select("tecnico_id")
@@ -465,6 +505,7 @@ const dataFormatada = dataSelecionada.toLocaleDateString('pt-BR');
         tecnicoId = consertoOriginal.tecnico_id
       }
     }
+    // 4. Caso contrário, fica com userIdInt (o próprio usuário logado, admin ou técnico)
 
     const comissaoPercentual = await getComissaoPercentual(tecnicoId)
     const comissao = lucro > 0 ? lucro * (comissaoPercentual / 100) : 0
@@ -516,6 +557,8 @@ const dataFormatada = dataSelecionada.toLocaleDateString('pt-BR');
         comissao: "0"
       })
       carregarConsertos()
+      setTecnicoIdFromOS(null)
+      setTecnicoFormId("")
     }
     setLoading(false)
   }
@@ -575,9 +618,10 @@ const dataFormatada = dataSelecionada.toLocaleDateString('pt-BR');
     const doc = new jsPDF()
     const dataAtual = new Date().toLocaleDateString('pt-BR')
     const periodo = mesSelecionado || "Todos os períodos"
-    const tecnicoInfo = usuarioSelecionado && (userLogado?.role === 'admin_loja' || userLogado?.role === 'master') 
+    const isAdmin = userLogado?.role === 'admin_loja' || userLogado?.role === 'master'
+    const tecnicoInfo = (usuarioSelecionado && isAdmin)
       ? usuarios.find(u => u.id === parseInt(usuarioSelecionado))?.username 
-      : userLogado?.username
+      : (isAdmin ? "Todos os Técnicos" : userLogado?.username)
     
     doc.setFillColor(139, 92, 246)
     doc.rect(0, 0, 210, 35, 'F')
@@ -687,6 +731,8 @@ const dataFormatada = dataSelecionada.toLocaleDateString('pt-BR');
               lucro: "0",
               comissao: "0"
             })
+            setTecnicoIdFromOS(null)
+            setTecnicoFormId("")
             setModalAberto(true)
           }}
           className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 hover:shadow-lg transition"
@@ -882,6 +928,28 @@ const dataFormatada = dataSelecionada.toLocaleDateString('pt-BR');
             </div>
             
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
+              {/* Seletor de técnico — só aparece para admin */}
+              {(userLogado?.role === 'admin_loja' || userLogado?.role === 'master') && !tecnicoIdFromOS && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">RESPONSÁVEL</label>
+                  <select
+                    value={tecnicoFormId}
+                    onChange={(e) => setTecnicoFormId(e.target.value)}
+                    className="w-full px-3 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none bg-gray-50 dark:bg-gray-900"
+                  >
+                    <option value="">Eu mesmo (Admin)</option>
+                    {usuarios.filter(u => u.id !== userLogado?.id).map(u => (
+                      <option key={u.id} value={u.id.toString()}>{u.username} ({u.comissao_percentual}% comissão)</option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-gray-400 mt-1">Selecione o técnico responsável ou deixe como "Eu mesmo".</p>
+                </div>
+              )}
+              {tecnicoIdFromOS && (
+                <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-2.5">
+                  <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">✅ Conserto será atribuído ao técnico selecionado na OS</p>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">DATA *</label>
                 <input
