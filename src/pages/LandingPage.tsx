@@ -16,7 +16,12 @@ import {
   TrendingUp,
   LayoutDashboard,
   ArrowRight,
-  ClipboardList
+  ClipboardList,
+  Star,
+  ShieldCheck,
+  Smartphone,
+  Coffee,
+  Heart
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -75,6 +80,34 @@ export default function LandingPage() {
       image: "/print-dashboard.png",
       icon: <LayoutDashboard className="w-6 h-6" />
     },
+  ]
+
+  const depoimentos = [
+    {
+      name: "Ricardo Silva",
+      loja: "Fênix Assistência",
+      text: "O controle de comissões me economizou horas de planilha no fim do mês. Agora tudo é automático e transparente para a equipe.",
+      stars: 5
+    },
+    {
+      name: "Amanda Costa",
+      loja: "Tech Lab",
+      text: "Finalmente um sistema que entende que a gente precisa ver o lucro bruto descontando as peças na hora. Mudou meu jogo financeiro.",
+      stars: 5
+    },
+    {
+      name: "Carlos Eduardo",
+      loja: "Help Celulares",
+      text: "A nova lista de O.S. vertical ficou sensacional. É muito mais rápido gerenciar o laboratório pelo tablet ou celular.",
+      stars: 5
+    }
+  ]
+
+  const diferenciais = [
+    { title: "Segurança Total", desc: "Seus dados são protegidos e isolados. Backup diário automático.", icon: <ShieldCheck className="w-5 h-5" /> },
+    { title: "Multidispositivo", desc: "Acesse do computador, tablet ou celular. Onde você estiver.", icon: <Smartphone className="w-5 h-5" /> },
+    { title: "Sempre Evoluindo", desc: "Atualizações constantes com novas funções baseadas no seu feedback.", icon: <Zap className="w-5 h-5" /> },
+    { title: "Suporte Amigo", desc: "Dúvidas? Nossa equipe está pronta para ajudar via WhatsApp.", icon: <Heart className="w-5 h-5" /> }
   ]
 
   useEffect(() => {
@@ -325,6 +358,23 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Seção Diferenciais */}
+      <section className="py-20 bg-white border-t border-gray-100">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
+            {diferenciais.map((d, i) => (
+              <div key={i} className="flex flex-col items-center text-center p-6 rounded-2xl hover:bg-purple-50 transition-colors group">
+                 <div className="w-12 h-12 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center mb-4 group-hover:bg-purple-600 group-hover:text-white transition-all">
+                    {d.icon}
+                 </div>
+                 <h4 className="font-bold text-gray-900 mb-1">{d.title}</h4>
+                 <p className="text-xs text-gray-500">{d.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Planos de Assinatura (Pricing) */}
       <section className="py-24 bg-slate-50 relative border-t border-gray-100">
         <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-purple-200 to-transparent" />
@@ -391,6 +441,39 @@ export default function LandingPage() {
                  Assinar Anual com Desconto
               </Button>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Depoimentos */}
+      <section className="py-24 bg-white">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-5xl font-extrabold text-gray-900 mb-4 tracking-tight">Quem usa, aprova</h2>
+            <p className="text-gray-500 text-lg">Milhares de assistências já abandonaram o caderno e planilhas.</p>
+          </div>
+          
+          <div className="grid md:grid-cols-3 gap-8">
+            {depoimentos.map((d, i) => (
+              <div key={i} className="bg-slate-50 p-8 rounded-[2.5rem] border border-gray-100 relative shadow-sm hover:shadow-md transition-shadow">
+                 <div className="flex gap-1 mb-6">
+                    {[...Array(d.stars)].map((_, s) => (
+                      <Star key={s} className="w-4 h-4 text-amber-500 fill-amber-500" />
+                    ))}
+                 </div>
+                 <p className="text-gray-700 italic mb-8 relative z-10 leading-relaxed">"{d.text}"</p>
+                 <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold text-xs">
+                      {d.name.charAt(0)}
+                    </div>
+                    <div>
+                       <p className="font-bold text-gray-900 text-sm">{d.name}</p>
+                       <p className="text-[11px] text-purple-600 font-bold uppercase">{d.loja}</p>
+                    </div>
+                 </div>
+                 <div className="absolute top-8 right-8 text-purple-100 italic font-serif text-6xl pointer-events-none opacity-50">“</div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
