@@ -15,7 +15,8 @@ import {
   Wrench,
   TrendingUp,
   LayoutDashboard,
-  ArrowRight
+  ArrowRight,
+  ClipboardList
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -40,39 +41,39 @@ export default function LandingPage() {
   const wppLink = `https://wa.me/55${phone.replace(/\D/g, '')}?text=Olá,%20gostaria%20de%20saber%20mais%20sobre%20o%20Store%20Tech!`
 
   const beneficios = [
-    { title: "Controle de Consertos", text: "Registre as manutenções, peças utilizadas e saiba o lucro exato de cada aparelho que passa pela sua bancada.", icon: <Wrench className="w-7 h-7" /> },
-    { title: "Pedidos de Peças", text: "Acabe com a confusão. Acompanhe os pedidos de todas as telas, baterias e serviços terceirizados num só painel.", icon: <Package className="w-7 h-7" /> },
-    { title: "Comissões e Técnicos", text: "Defina a porcentagem de cada técnico e deixe que o sistema calcule automaticamente tudo no fim do mês.", icon: <Users className="w-7 h-7" /> },
+    { title: "Gestão de O.S. Moderna", text: "Lista vertical inteligente com filtros de data e KPIs de faturamento. Saiba exatamente quanto sua bancada produziu no dia, semana ou mês.", icon: <ClipboardList className="w-7 h-7" /> },
+    { title: "Estoque Inteligente", text: "Controle de peças por categoria com alertas de estoque baixo. Saiba quando repor baterias, telas e conectores antes que acabem.", icon: <Package className="w-7 h-7" /> },
+    { title: "Comissões e Lucro Real", text: "Cálculo automático de comissão dos técnicos e lucro líquido descontando peças e frete. Gestão financeira total.", icon: <TrendingUp className="w-7 h-7" /> },
   ]
 
   const prints = [
     {
-      id: "dashboard",
-      title: "Dashboard de Resultados",
-      desc: "Acompanhe de perto faturamento, ticket médio, quantidade de consertos e garantias do mês.",
-      image: "/print-dashboard.png",
-      icon: <LayoutDashboard className="w-6 h-6" />
+      id: "ordens",
+      title: "Nova Interface de O.S.",
+      desc: "Adeus rolagem horizontal. Veja suas ordens em uma lista vertical moderna, filtre por período e acompanhe KPIs de faturamento.",
+      image: "/print-ordens.png",
+      icon: <ClipboardList className="w-6 h-6" />
     },
     {
-      id: "consertos",
-      title: "Gestão de Consertos",
-      desc: "A tela principal da sua operação. Registre cada aparelho, o custo, valor cobrado e veja o lucro e a comissão.",
-      image: "/print-consertos.png",
-      icon: <Wrench className="w-6 h-6" />
+      id: "estoque",
+      title: "Controle de Estoque",
+      desc: "Gerencie peças por categorias, receba alertas de estoque mínimo e mantenha seu laboratório sempre abastecido.",
+      image: "/print-estoque.png",
+      icon: <Package className="w-6 h-6" />
     },
     {
       id: "relatorios",
-      title: "Pedidos e Relatórios",
-      desc: "Analise seus pedidos por fornecedor. Descubra os detalhes dos serviços mensais em poucos cliques.",
-      image: "/print-relatorios.png",
-      icon: <BarChart className="w-6 h-6" />
+      title: "Consertos e Lucros",
+      desc: "Histórico completo de atendimentos com detalhamento de custos, lucros e comissões integradas.",
+      image: "/print-consertos.png",
+      icon: <TrendingUp className="w-6 h-6" />
     },
     {
-      id: "usuarios",
-      title: "Técnicos e Comissões",
-      desc: "Gerencie permissões de quem acessa o sistema e configure os níveis de comissionamento de cada usuário.",
-      image: "/print-usuarios.png",
-      icon: <Users className="w-6 h-6" />
+      id: "dashboard",
+      title: "Dashboard em Tempo Real",
+      desc: "Gráficos inteligentes de desempenho, principais serviços realizados e saúde financeira da sua assistência.",
+      image: "/print-dashboard.png",
+      icon: <LayoutDashboard className="w-6 h-6" />
     },
   ]
 
@@ -143,10 +144,10 @@ export default function LandingPage() {
               </button>
 
               <h1 className="text-5xl lg:text-6xl xl:text-[4rem] font-extrabold text-gray-900 mb-6 leading-[1.1] tracking-tight">
-                Pare de errar nas <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-purple-400">peças e consertos</span>.
+                Organize seu <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-purple-400">laboratório</span> de ponta a ponta.
               </h1>
               <p className="text-xl text-gray-600 mb-8 leading-relaxed max-w-[540px]">
-                Controle registros de consertos de aparelhos, pedidos de reposição com fornecedores e as comissões dos técnicos da sua assistência. Tudo em um só lugar.
+                Gestão simplificada de Ordens de Serviço, Controle Inteligente de Estoque e Faturamento em tempo real para sua assistência técnica.
               </p>
 
               {/* Formulário de Conversão Direto no Hero */}
